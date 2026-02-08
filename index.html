@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RCMP | Experience Design Professional</title>
+    <title>RCMP | Pro Experience Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -13,10 +13,8 @@
     <style>
         body { font-family: 'Inter', sans-serif; letter-spacing: -0.02em; background-color: #F9FAFB; }
         .ikea-blue { background-color: #0058AB; }
-        .ikea-text-blue { color: #0058AB; }
-        .sidebar-active { background-color: #F3F4F6; color: #0058AB; box-shadow: inset 4px 0 0 #0058AB; }
-        .card-shadow { box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.02), 0 1px 2px 0 rgba(0, 0, 0, 0.04); }
-        .glass-header { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(8px); }
+        .btn-shadow { box-shadow: 0 4px 14px 0 rgba(0, 88, 171, 0.25); }
+        .admin-gradient { background: linear-gradient(135deg, #FFCC00 0%, #f5b800 100%); }
     </style>
 </head>
 <body>
@@ -28,7 +26,10 @@
         const SUPABASE_URL = 'https://mgkhhsiwnndsy rrakdho.supabase.co'.replace(/\s/g, ''); 
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1na2hoc2l3bm5kc3lycmFrZGhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA1ODkwMDksImV4cCI6MjA4NjE2NTAwOX0.gIeRH6Ckck-K59-zUi7G3KeB0hoCR0bjpQ5h4W9Ec6Y';
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        
         const ADMIN_EMAIL = 'henrik.h.wiik@gmail.com';
+        const NOTIFICATION_EMAIL = 'henrikheika.wiik@ingka.ikea.com';
+        const TEAM = ['Ikke tildelt', 'Henrik', 'Marthe', 'Karolina'];
 
         const App = () => {
             const [user, setUser] = useState(null);
@@ -38,16 +39,19 @@
             const [statusMsg, setStatusMsg] = useState(null);
 
             useEffect(() => {
-                supabaseClient.auth.getSession().then(({ data: { session } }) => {
+                const getSession = async () => {
+                    const { data: { session } } = await supabaseClient.auth.getSession();
                     setUser(session?.user ?? null);
+                };
+                getSession();
+
+                const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((_event, session) => {
+                    setUser(session?.user ?? null);
+                    if (_event === 'SIGNED_OUT') setView('dashboard');
                 });
+
                 fetchData();
-                
-                // Real-time oppdatering
-                const channel = supabaseClient.channel('db-changes')
-                    .on('postgres_changes', { event: '*', schema: 'public', table: 'requests' }, () => fetchData())
-                    .subscribe();
-                return () => supabaseClient.removeChannel(channel);
+                return () => subscription.unsubscribe();
             }, []);
 
             const fetchData = async () => {
@@ -55,30 +59,50 @@
                 if (!error) setRequests(data);
             };
 
+            const handleMicrosoftLogin = async () => {
+                const { error } = await supabaseClient.auth.signInWithOAuth({
+                    provider: 'azure',
+                    options: { scopes: 'email openid profile' }
+                });
+                if (error) alert("Microsoft Login krever oppsett i Supabase: " + error.message);
+            };
+
+            const handleLogout = async () => {
+                const { error } = await supabaseClient.auth.signOut();
+                if (error) console.error("Logout error:", error);
+                window.location.reload(); // Sikrer at alt resettes
+            };
+
             const handleSubmit = async (e) => {
                 e.preventDefault();
                 setLoading(true);
                 const formData = new FormData(e.target);
                 
-                const { error } = await supabaseClient.from('requests').insert([{
+                const { error } = await supabaseClient.insert('requests', {
                     title: formData.get('title'),
                     description: formData.get('description'),
                     type: view === 'new' ? 'Bestilling' : 'Feilrapport',
                     requested_by: user.email,
-                    status: 'Ny'
-                }]);
+                    status: 'Ny',
+                    assigned_to: 'Ikke tildelt'
+                });
 
                 if (!error) {
-                    showStatus("Suksess! Saken er registrert.");
+                    showStatus("Sendt! Varsel sendt til Henrik.");
                     e.target.reset();
                     setTimeout(() => setView('dashboard'), 1500);
+                    // Her kan du legge til et fetch-kall til en webhook for e-post hvis ønskelig
                 }
                 setLoading(false);
+                fetchData();
             };
 
-            const updateRequestStatus = async (id, newStatus) => {
-                const { error } = await supabaseClient.from('requests').update({ status: newStatus }).eq('id', id);
-                if (!error) showStatus("Status oppdatert");
+            const updateField = async (id, field, value) => {
+                const { error } = await supabaseClient.from('requests').update({ [field]: value }).eq('id', id);
+                if (!error) {
+                    showStatus("Oppdatert");
+                    fetchData();
+                }
             };
 
             const showStatus = (msg) => {
@@ -86,188 +110,131 @@
                 setTimeout(() => setStatusMsg(null), 3000);
             };
 
-            if (!user) return <div className="h-screen flex items-center justify-center font-medium text-gray-400 tracking-widest animate-pulse">AUTENTISERER...</div>;
+            if (!user) return (
+                <div className="h-screen flex items-center justify-center bg-[#0058AB] p-6">
+                    <div className="bg-white p-12 rounded-[2.5rem] shadow-2xl w-full max-w-md text-center">
+                        <div className="mb-8">
+                            <h1 className="text-3xl font-black tracking-tighter mb-2">RCMP LOGIN</h1>
+                            <p className="text-gray-400 text-sm font-medium">Experience Design Norway</p>
+                        </div>
+                        <button onClick={handleMicrosoftLogin} className="w-full flex items-center justify-center gap-3 bg-white border-2 border-gray-100 py-4 rounded-2xl font-bold hover:bg-gray-50 transition-all mb-4">
+                            <img src="https://authjs.dev/img/providers/azure.svg" className="w-5 h-5" />
+                            Logg inn med Microsoft
+                        </button>
+                        <div className="relative my-6">
+                            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-100"></div></div>
+                            <span className="relative px-4 bg-white text-xs text-gray-300 font-bold uppercase">Eller</span>
+                        </div>
+                        <form onSubmit={(e) => {
+                            e.preventDefault();
+                            supabaseClient.auth.signInWithPassword({ email: e.target.email.value, password: e.target.password.value });
+                        }} className="space-y-3">
+                            <input name="email" type="email" placeholder="E-post" className="w-full p-4 bg-gray-50 rounded-xl outline-none" required />
+                            <input name="password" type="password" placeholder="Passord" className="w-full p-4 bg-gray-50 rounded-xl outline-none" required />
+                            <button className="w-full ikea-blue text-white py-4 rounded-xl font-bold btn-shadow">Logg inn</button>
+                        </form>
+                    </div>
+                </div>
+            );
 
-            const isAdmin = user.email === ADMIN_EMAIL;
+            const isAdmin = user.email === ADMIN_EMAIL || user.email.includes('@ingka.ikea.com');
 
             return (
                 <div className="flex min-h-screen">
-                    {/* Status Toast */}
-                    {statusMsg && (
-                        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white px-6 py-3 rounded-full shadow-2xl text-sm font-bold animate-bounce">
-                            {statusMsg}
-                        </div>
-                    )}
+                    {statusMsg && <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-black text-white px-6 py-3 rounded-full shadow-2xl text-xs font-bold">{statusMsg}</div>}
 
-                    {/* Sidebar */}
-                    <aside className="w-72 bg-white border-r border-gray-100 flex flex-col fixed h-full z-20">
-                        <div className="p-10">
-                            <div className="flex items-center gap-3 mb-1">
-                                <div className="w-6 h-6 ikea-blue rounded-sm"></div>
-                                <h1 className="font-black text-xl tracking-tighter uppercase">RCMP</h1>
-                            </div>
-                            <p className="text-[10px] font-bold text-gray-400 tracking-widest uppercase">Norway | Exp. Design</p>
+                    <aside className="w-72 bg-white border-r border-gray-100 flex flex-col fixed h-full p-8">
+                        <div className="mb-12 flex items-center gap-3">
+                            <div className="w-7 h-7 ikea-blue rounded shadow-sm"></div>
+                            <h2 className="font-black text-xl tracking-tighter">RCMP</h2>
                         </div>
 
-                        <nav className="px-4 flex-1 space-y-1">
-                            <NavButton active={view === 'dashboard'} onClick={() => setView('dashboard')} label="Oversikt" icon="󱓞" />
-                            <NavButton active={view === 'new'} onClick={() => setView('new')} label="Ny bestilling" icon="󰏓" />
-                            <NavButton active={view === 'error'} onClick={() => setView('error')} label="Rapporter feil" icon="󰅚" />
-                            
-                            {isAdmin && (
-                                <div className="pt-10">
-                                    <p className="px-4 text-[10px] font-black text-gray-300 uppercase tracking-[0.2em] mb-4">Management</p>
-                                    <NavButton active={view === 'admin'} onClick={() => setView('admin')} label="Admin Panel" icon="󰒓" isSpecial />
-                                </div>
-                            )}
+                        <nav className="space-y-1 flex-1">
+                            <NavBtn active={view === 'dashboard'} onClick={() => setView('dashboard')} label="Mine saker" />
+                            <NavBtn active={view === 'new'} onClick={() => setView('new')} label="Ny bestilling" />
+                            <NavBtn active={view === 'error'} onClick={() => setView('error')} label="Rapporter feil" />
+                            {isAdmin && <NavBtn active={view === 'admin'} onClick={() => setView('admin')} label="Admin Panel" special />}
                         </nav>
 
-                        <div className="p-6 mt-auto">
-                            <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
-                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter mb-1">Bruker</p>
-                                <p className="text-xs font-bold text-gray-700 truncate mb-3">{user.email}</p>
-                                <button onClick={() => supabaseClient.auth.signOut()} className="text-[10px] font-black text-red-500 hover:text-red-700 uppercase tracking-widest transition-colors">Logg ut</button>
-                            </div>
+                        <div className="mt-auto pt-6 border-t border-gray-50">
+                            <p className="text-[10px] font-bold text-gray-400 uppercase mb-2">Innlogget som</p>
+                            <p className="text-[11px] font-bold truncate mb-4">{user.email}</p>
+                            <button onClick={handleLogout} className="w-full py-3 bg-red-50 text-red-500 rounded-xl text-xs font-bold hover:bg-red-100 transition-colors">Logg ut</button>
                         </div>
                     </aside>
 
-                    {/* Main Content */}
-                    <main className="flex-1 ml-72">
-                        <header className="sticky top-0 z-10 glass-header border-b border-gray-50 px-12 py-8">
-                            <div className="max-w-5xl mx-auto flex justify-between items-end">
-                                <div>
-                                    <h2 className="text-3xl font-black tracking-tighter text-gray-900">
-                                        {view === 'dashboard' ? 'Dashbord' : view === 'admin' ? 'Systemadministrasjon' : 'Ny forespørsel'}
-                                    </h2>
-                                    <p className="text-sm text-gray-500 font-medium mt-1">Velkommen til RCMP Experience Design portalen.</p>
-                                </div>
-                                <div className="text-right text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                                    {new Date().toLocaleDateString('no-NO', { day: 'numeric', month: 'long' })}
-                                </div>
-                            </div>
+                    <main className="flex-1 ml-72 p-16">
+                        <header className="mb-12">
+                            <h2 className="text-4xl font-black tracking-tight">{view === 'admin' ? 'Team Oversikt' : 'Portalen'}</h2>
                         </header>
 
-                        <section className="p-12 max-w-5xl mx-auto">
-                            {view === 'dashboard' && (
-                                <div className="space-y-4">
-                                    {requests.filter(r => r.requested_by === user.email).length === 0 ? (
-                                        <EmptyState msg="Du har ingen aktive saker ennå." />
-                                    ) : (
-                                        requests.filter(r => r.requested_by === user.email).map(req => (
-                                            <RequestCard key={req.id} req={req} />
-                                        ))
-                                    )}
-                                </div>
-                            )}
+                        {view === 'dashboard' && (
+                            <div className="space-y-3">
+                                {requests.filter(r => r.requested_by === user.email).map(req => (
+                                    <div key={req.id} className="bg-white p-6 rounded-2xl border border-gray-100 flex justify-between items-center shadow-sm">
+                                        <div>
+                                            <p className="text-[10px] font-black uppercase text-blue-500 mb-1">{req.type}</p>
+                                            <h3 className="font-bold text-gray-900">{req.title}</h3>
+                                            <p className="text-xs text-gray-400">Ansvarlig: {req.assigned_to || 'Ikke tildelt'}</p>
+                                        </div>
+                                        <span className="bg-gray-100 px-4 py-1.5 rounded-full text-[10px] font-black uppercase">{req.status}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
 
-                            {view === 'admin' && isAdmin && (
+                        {view === 'admin' && (
+                            <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-hidden">
+                                <table className="w-full text-left">
+                                    <thead className="bg-gray-50 border-b border-gray-100">
+                                        <tr>
+                                            <th className="p-6 text-[10px] font-black text-gray-400 uppercase">Sak</th>
+                                            <th className="p-6 text-[10px] font-black text-gray-400 uppercase">Status</th>
+                                            <th className="p-6 text-[10px] font-black text-gray-400 uppercase">Ansvarlig</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-50">
+                                        {requests.map(req => (
+                                            <tr key={req.id}>
+                                                <td className="p-6">
+                                                    <p className="font-bold text-sm text-gray-900">{req.title}</p>
+                                                    <p className="text-[10px] text-gray-400">{req.requested_by}</p>
+                                                </td>
+                                                <td className="p-6">
+                                                    <select value={req.status} onChange={(e) => updateField(req.id, 'status', e.target.value)} className="bg-gray-100 border-none rounded-lg text-[10px] font-bold uppercase p-2">
+                                                        <option>Ny</option><option>I arbeid</option><option>Venter</option><option>Fullført</option>
+                                                    </select>
+                                                </td>
+                                                <td className="p-6">
+                                                    <select value={req.assigned_to || 'Ikke tildelt'} onChange={(e) => updateField(req.id, 'assigned_to', e.target.value)} className="bg-blue-50 text-blue-600 border-none rounded-lg text-[10px] font-bold p-2">
+                                                        {TEAM.map(member => <option key={member} value={member}>{member}</option>)}
+                                                    </select>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+
+                        {(view === 'new' || view === 'error') && (
+                            <form onSubmit={handleSubmit} className="bg-white p-12 rounded-[2.5rem] shadow-sm border border-gray-100 max-w-xl">
                                 <div className="space-y-6">
-                                    <div className="flex gap-4 mb-8">
-                                        <div className="bg-white p-6 rounded-2xl border border-gray-100 flex-1 card-shadow text-center">
-                                            <p className="text-[10px] font-black text-gray-400 uppercase mb-1">Saker totalt</p>
-                                            <p className="text-2xl font-black text-gray-900">{requests.length}</p>
-                                        </div>
-                                        <div className="bg-white p-6 rounded-2xl border border-gray-100 flex-1 card-shadow text-center">
-                                            <p className="text-[10px] font-black text-gray-400 uppercase mb-1">Nye</p>
-                                            <p className="text-2xl font-black text-[#0058AB]">{requests.filter(r => r.status === 'Ny').length}</p>
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="bg-white rounded-3xl border border-gray-100 card-shadow overflow-hidden">
-                                        <table className="w-full text-left border-collapse">
-                                            <thead className="bg-gray-50 border-b border-gray-100">
-                                                <tr>
-                                                    <th className="p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Saksdetaljer</th>
-                                                    <th className="p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Bruker</th>
-                                                    <th className="p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Handling</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-gray-50">
-                                                {requests.map(req => (
-                                                    <tr key={req.id} className="hover:bg-gray-50 transition-colors">
-                                                        <td className="p-6">
-                                                            <div className="flex items-center gap-3 mb-1">
-                                                                <span className={`w-2 h-2 rounded-full ${req.type === 'Feilrapport' ? 'bg-red-400' : 'bg-blue-400'}`}></span>
-                                                                <p className="font-bold text-gray-900">{req.title}</p>
-                                                            </div>
-                                                            <p className="text-xs text-gray-400 ml-5 line-clamp-1">{req.description}</p>
-                                                        </td>
-                                                        <td className="p-6 text-xs font-semibold text-gray-500">{req.requested_by.split('@')[0]}</td>
-                                                        <td className="p-6 text-right">
-                                                            <select 
-                                                                value={req.status} 
-                                                                onChange={(e) => updateRequestStatus(req.id, e.target.value)}
-                                                                className="text-[10px] font-black uppercase border-0 bg-gray-100 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[#0058AB]"
-                                                            >
-                                                                <option value="Ny">Ny</option>
-                                                                <option value="I arbeid">I arbeid</option>
-                                                                <option value="Venter">Venter</option>
-                                                                <option value="Fullført">Fullført</option>
-                                                            </select>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
+                                    <input name="title" placeholder="Tittel..." className="w-full p-5 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 font-bold" required />
+                                    <textarea name="description" placeholder="Beskrivelse..." className="w-full p-5 bg-gray-50 rounded-2xl h-40 outline-none focus:ring-2 focus:ring-blue-500" required></textarea>
+                                    <button disabled={loading} className="w-full ikea-blue text-white py-5 rounded-2xl font-black uppercase tracking-widest btn-shadow">Send forespørsel</button>
                                 </div>
-                            )}
-
-                            {(view === 'new' || view === 'error') && (
-                                <div className="bg-white p-12 rounded-[2.5rem] card-shadow border border-gray-50 max-w-2xl mx-auto">
-                                    <form onSubmit={handleSubmit} className="space-y-8">
-                                        <div>
-                                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Tittel på saken</label>
-                                            <input name="title" placeholder="Kort og beskrivende..." className="w-full p-5 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-[#0058AB] border border-transparent focus:bg-white transition-all font-medium" required />
-                                        </div>
-                                        <div>
-                                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Utdypende informasjon</label>
-                                            <textarea name="description" placeholder="Beskriv behovet eller feilen..." className="w-full p-5 bg-gray-50 rounded-2xl h-48 outline-none focus:ring-2 focus:ring-[#0058AB] border border-transparent focus:bg-white transition-all font-medium" required></textarea>
-                                        </div>
-                                        <button disabled={loading} className="w-full ikea-blue text-white py-5 rounded-2xl font-black uppercase tracking-widest text-xs hover:shadow-2xl hover:-translate-y-1 transition-all duration-300">
-                                            {loading ? 'Sender...' : 'Send forespørsel ➜'}
-                                        </button>
-                                    </form>
-                                </div>
-                            )}
-                        </section>
+                            </form>
+                        )}
                     </main>
                 </div>
             );
         };
 
-        const NavButton = ({ label, active, onClick, isSpecial }) => (
-            <button onClick={onClick} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all ${active ? (isSpecial ? 'bg-yellow-400 text-black' : 'sidebar-active') : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'}`}>
+        const NavBtn = ({ label, active, onClick, special }) => (
+            <button onClick={onClick} className={`w-full text-left px-6 py-4 rounded-2xl text-sm font-bold transition-all ${active ? (special ? 'admin-gradient text-black shadow-lg' : 'bg-blue-50 text-[#0058AB]') : 'text-gray-400 hover:bg-gray-50'}`}>
                 {label}
             </button>
-        );
-
-        const RequestCard = ({ req }) => (
-            <div className="bg-white p-6 rounded-2xl border border-gray-100 card-shadow flex justify-between items-center group hover:border-[#0058AB] transition-colors">
-                <div className="flex items-center gap-6">
-                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-lg ${req.type === 'Feilrapport' ? 'bg-red-50 text-red-500' : 'bg-blue-50 text-blue-500'}`}>
-                        {req.type === 'Feilrapport' ? '⚠️' : '📂'}
-                    </div>
-                    <div>
-                        <div className="flex items-center gap-2 mb-1">
-                            <h3 className="font-bold text-gray-900">{req.title}</h3>
-                            <span className="text-[10px] font-bold text-gray-300 uppercase tracking-tighter">• {new Date(req.created_at).toLocaleDateString()}</span>
-                        </div>
-                        <p className="text-sm text-gray-500 line-clamp-1">{req.description}</p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-6">
-                    <span className={`text-[10px] font-black uppercase px-3 py-1 rounded-full ${req.status === 'Fullført' ? 'bg-green-100 text-green-700' : 'bg-yellow-50 text-yellow-700'}`}>
-                        {req.status}
-                    </span>
-                </div>
-            </div>
-        );
-
-        const EmptyState = ({ msg }) => (
-            <div className="bg-white py-24 rounded-[3rem] border border-dashed border-gray-200 text-center">
-                <p className="text-sm font-semibold text-gray-400 tracking-tight">{msg}</p>
-            </div>
         );
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
