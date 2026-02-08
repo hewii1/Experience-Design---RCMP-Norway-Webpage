@@ -8,63 +8,180 @@
     <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
 </head>
-<body>
+<body class="bg-gray-50">
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState } = React;
+        const { useState, useEffect } = React;
 
-        const colors = {
-            ikeaBlue: '#0058AB',
-            ikeaYellow: '#FFCC00',
-            softGray: '#F5F5F5',
-            textBlack: '#111111'
-        };
+        // --- KONFIGURASJON (Sett inn dine verdier her) ---
+        const SUPABASE_URL = 'DIN_SUPABASE_URL';
+        const SUPABASE_KEY = 'DIN_SUPABASE_ANON_KEY';
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        const ADMIN_EMAIL = 'henrik.h.wiik@gmail.com';
 
-        const Dashboard = () => {
+        const App = () => {
+            const [user, setUser] = useState(null);
             const [view, setView] = useState('dashboard');
+            const [requests, setRequests] = useState([]);
+            const [loading, setLoading] = useState(false);
+
+            useEffect(() => {
+                // Sjekk om bruker er logget inn
+                const session = supabase.auth.getSession().then(({ data: { session } }) => {
+                    setUser(session?.user ?? null);
+                });
+
+                // Hent data hvis bruker finnes
+                fetchRequests();
+            }, []);
+
+            const fetchRequests = async () => {
+                const { data } = await supabase.from('requests').select('*').order('created_at', { ascending: false });
+                setRequests(data || []);
+            };
+
+            const handleLogin = async (e) => {
+                e.preventDefault();
+                const email = e.target.email.value;
+                const password = e.target.password.value;
+                const { error } = await supabase.auth.signInWithPassword({ email, password });
+                if (error) alert(error.message);
+                else window.location.reload();
+            };
+
+            const handleSubmitRequest = async (e) => {
+                e.preventDefault();
+                setLoading(true);
+                const formData = new FormData(e.target);
+                const newReq = {
+                    title: formData.get('title'),
+                    description: formData.get('description'),
+                    type: view === 'new' ? 'Dashboard Request' : 'Error Report',
+                    requested_by: user.email,
+                    status: 'New'
+                };
+                
+                await supabase.from('requests').insert([newReq]);
+                alert("Innsendt!");
+                setView('dashboard');
+                fetchRequests();
+                setLoading(false);
+            };
+
+            const updateStatus = async (id, newStatus) => {
+                await supabase.from('requests').update({ status: newStatus }).eq('id', id);
+                fetchRequests();
+            };
+
+            if (!user) {
+                return (
+                    <div className="flex items-center justify-center h-screen">
+                        <form onSubmit={handleLogin} className="bg-white p-8 rounded shadow-md w-96 border-t-4 border-blue-600">
+                            <h2 className="text-2xl font-bold mb-6 text-center">Logg inn - RCMP</h2>
+                            <input name="email" type="email" placeholder="E-post" className="w-full p-2 mb-4 border rounded" required />
+                            <input name="password" type="password" placeholder="Passord" className="w-full p-2 mb-6 border rounded" required />
+                            <button className="w-full bg-[#0058AB] text-white py-2 rounded font-bold hover:bg-blue-700">Logg inn</button>
+                        </form>
+                    </div>
+                );
+            }
+
+            const isAdmin = user.email === ADMIN_EMAIL;
 
             return (
-                <div className="min-h-screen bg-gray-50 flex font-sans">
+                <div className="flex min-h-screen">
                     {/* Sidebar */}
-                    <nav className="w-64 bg-white border-r border-gray-200 p-6 flex flex-col h-screen sticky top-0">
-                        <div className="mb-10">
-                            <h1 className="text-xl font-bold tracking-tight" style={{ color: colors.ikeaBlue }}>
-                                RCMP <span className="font-normal text-gray-500">Experience Design</span>
-                            </h1>
-                        </div>
-
-                        <ul className="space-y-4 flex-1">
-                            <li onClick={() => setView('dashboard')} className={`cursor-pointer p-3 rounded-md font-medium ${view === 'dashboard' ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}>Dashboard</li>
-                            <li onClick={() => setView('new')} className={`cursor-pointer p-3 rounded-md font-medium ${view === 'new' ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}>New Request</li>
-                            <li onClick={() => setView('error')} className={`cursor-pointer p-3 rounded-md font-medium ${view === 'error' ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}>Report Error</li>
-                        </ul>
-
-                        <div className="mt-auto p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm">
-                            <p className="font-bold" style={{ color: colors.textBlack }}>Innlogget som:</p>
-                            <p className="truncate text-gray-600">henrik.h.wiik@gmail.com</p>
-                        </div>
+                    <nav className="w-64 bg-white border-r p-6 space-y-4">
+                        <h1 className="text-[#0058AB] font-bold text-lg mb-8">RCMP Experience</h1>
+                        <button onClick={() => setView('dashboard')} className={`w-full text-left p-2 rounded ${view === 'dashboard' ? 'bg-blue-50 text-blue-700' : ''}`}>Dashboard</button>
+                        <button onClick={() => setView('new')} className={`w-full text-left p-2 rounded ${view === 'new' ? 'bg-blue-50 text-blue-700' : ''}`}>Ny forespørsel</button>
+                        <button onClick={() => setView('error')} className={`w-full text-left p-2 rounded ${view === 'error' ? 'bg-blue-50 text-blue-700' : ''}`}>Rapporter feil</button>
+                        {isAdmin && (
+                            <button onClick={() => setView('admin')} className={`w-full text-left p-2 rounded mt-8 font-bold ${view === 'admin' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100'}`}>ADMIN PANEL</button>
+                        )}
+                        <button onClick={() => supabase.auth.signOut().then(() => window.location.reload())} className="text-red-500 text-sm mt-10">Logg ut</button>
                     </nav>
 
-                    {/* Main Content */}
+                    {/* Content */}
                     <main className="flex-1 p-10">
-                        <header className="mb-8">
-                            <h2 className="text-3xl font-semibold text-gray-800">
-                                {view === 'dashboard' ? 'Oversikt' : view === 'new' ? 'Ny forespørsel' : 'Rapporter feil'}
-                            </h2>
-                        </header>
+                        {view === 'dashboard' && (
+                            <div>
+                                <h2 className="text-2xl font-bold mb-6">Dine forespørsler</h2>
+                                <div className="grid gap-4">
+                                    {requests.filter(r => r.requested_by === user.email || isAdmin).map(req => (
+                                        <div key={req.id} className="bg-white p-4 rounded border shadow-sm flex justify-between">
+                                            <div>
+                                                <span className="text-xs font-bold text-blue-600 uppercase">{req.type}</span>
+                                                <h3 className="font-bold">{req.title}</h3>
+                                                <p className="text-sm text-gray-500">{req.description}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className="px-3 py-1 rounded-full text-xs font-bold bg-gray-100">{req.status}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
-                        <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm">
-                            <p className="text-gray-500 italic">Innhold for {view} kommer her. Koble til Supabase for å lagre data live.</p>
-                        </div>
+                        {(view === 'new' || view === 'error') && (
+                            <div className="max-w-2xl bg-white p-8 rounded border">
+                                <h2 className="text-2xl font-bold mb-6">{view === 'new' ? 'Bestill nytt dashbord' : 'Rapporter feil'}</h2>
+                                <form onSubmit={handleSubmitRequest} className="space-y-4">
+                                    <input name="title" placeholder="Tittel" className="w-full p-2 border rounded" required />
+                                    <textarea name="description" placeholder="Beskrivelse" className="w-full p-2 border rounded h-32" required></textarea>
+                                    <button disabled={loading} className="bg-[#0058AB] text-white px-6 py-2 rounded font-bold">
+                                        {loading ? 'Sender...' : 'Send inn'}
+                                    </button>
+                                </form>
+                            </div>
+                        )}
+
+                        {view === 'admin' && isAdmin && (
+                            <div>
+                                <h2 className="text-2xl font-bold mb-6 text-yellow-800">Admin: Alle forespørsler</h2>
+                                <table className="w-full bg-white rounded border">
+                                    <thead>
+                                        <tr className="bg-gray-50 text-left">
+                                            <th className="p-3">Tittel</th>
+                                            <th className="p-3">Bruker</th>
+                                            <th className="p-3">Status</th>
+                                            <th className="p-3">Handling</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {requests.map(req => (
+                                            <tr key={req.id} className="border-t">
+                                                <td className="p-3 font-medium">{req.title}</td>
+                                                <td className="p-3 text-sm">{req.requested_by}</td>
+                                                <td className="p-3 text-sm">{req.status}</td>
+                                                <td className="p-3">
+                                                    <select 
+                                                        onChange={(e) => updateStatus(req.id, e.target.value)}
+                                                        className="text-xs border p-1 rounded"
+                                                        value={req.status}
+                                                    >
+                                                        <option value="New">New</option>
+                                                        <option value="In Progress">In Progress</option>
+                                                        <option value="Completed">Completed</option>
+                                                    </select>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
                     </main>
                 </div>
             );
         };
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<Dashboard />);
+        root.render(<App />);
     </script>
 </body>
 </html>
