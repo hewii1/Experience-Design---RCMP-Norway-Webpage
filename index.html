@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RCMP Experience Design</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState } = React;
+
+        const colors = {
+            ikeaBlue: '#0058AB',
+            ikeaYellow: '#FFCC00',
+            softGray: '#F5F5F5',
+            textBlack: '#111111'
+        };
+
+        const Dashboard = () => {
+            const [view, setView] = useState('dashboard');
+
+            return (
+                <div className="min-h-screen bg-gray-50 flex font-sans">
+                    {/* Sidebar */}
+                    <nav className="w-64 bg-white border-r border-gray-200 p-6 flex flex-col h-screen sticky top-0">
+                        <div className="mb-10">
+                            <h1 className="text-xl font-bold tracking-tight" style={{ color: colors.ikeaBlue }}>
+                                RCMP <span className="font-normal text-gray-500">Experience Design</span>
+                            </h1>
+                        </div>
+
+                        <ul className="space-y-4 flex-1">
+                            <li onClick={() => setView('dashboard')} className={`cursor-pointer p-3 rounded-md font-medium ${view === 'dashboard' ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}>Dashboard</li>
+                            <li onClick={() => setView('new')} className={`cursor-pointer p-3 rounded-md font-medium ${view === 'new' ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}>New Request</li>
+                            <li onClick={() => setView('error')} className={`cursor-pointer p-3 rounded-md font-medium ${view === 'error' ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-700' : 'text-gray-600 hover:bg-gray-100'}`}>Report Error</li>
+                        </ul>
+
+                        <div className="mt-auto p-4 bg-yellow-50 border border-yellow-200 rounded-lg text-sm">
+                            <p className="font-bold" style={{ color: colors.textBlack }}>Innlogget som:</p>
+                            <p className="truncate text-gray-600">henrik.h.wiik@gmail.com</p>
+                        </div>
+                    </nav>
+
+                    {/* Main Content */}
+                    <main className="flex-1 p-10">
+                        <header className="mb-8">
+                            <h2 className="text-3xl font-semibold text-gray-800">
+                                {view === 'dashboard' ? 'Oversikt' : view === 'new' ? 'Ny forespørsel' : 'Rapporter feil'}
+                            </h2>
+                        </header>
+
+                        <div className="bg-white p-8 rounded-lg border border-gray-200 shadow-sm">
+                            <p className="text-gray-500 italic">Innhold for {view} kommer her. Koble til Supabase for å lagre data live.</p>
+                        </div>
+                    </main>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<Dashboard />);
+    </script>
+</body>
+</html>
