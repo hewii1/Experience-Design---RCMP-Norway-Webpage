@@ -3,21 +3,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RCMP | Experience Design</title>
+    <title>RCMP | Experience Design Professional</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; letter-spacing: -0.01em; }
+        body { font-family: 'Inter', sans-serif; letter-spacing: -0.02em; background-color: #F9FAFB; }
         .ikea-blue { background-color: #0058AB; }
-        .success-animation { animation: slideIn 0.5s ease-out forwards; }
-        @keyframes slideIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .ikea-text-blue { color: #0058AB; }
+        .sidebar-active { background-color: #F3F4F6; color: #0058AB; box-shadow: inset 4px 0 0 #0058AB; }
+        .card-shadow { box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.02), 0 1px 2px 0 rgba(0, 0, 0, 0.04); }
+        .glass-header { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(8px); }
     </style>
 </head>
-<body class="bg-[#F8FAFC]">
+<body>
     <div id="root"></div>
 
     <script type="text/babel">
@@ -33,13 +35,19 @@
             const [view, setView] = useState('dashboard');
             const [requests, setRequests] = useState([]);
             const [loading, setLoading] = useState(false);
-            const [success, setSuccess] = useState(false);
+            const [statusMsg, setStatusMsg] = useState(null);
 
             useEffect(() => {
                 supabaseClient.auth.getSession().then(({ data: { session } }) => {
                     setUser(session?.user ?? null);
                 });
                 fetchData();
+                
+                // Real-time oppdatering
+                const channel = supabaseClient.channel('db-changes')
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'requests' }, () => fetchData())
+                    .subscribe();
+                return () => supabaseClient.removeChannel(channel);
             }, []);
 
             const fetchData = async () => {
@@ -55,96 +63,212 @@
                 const { error } = await supabaseClient.from('requests').insert([{
                     title: formData.get('title'),
                     description: formData.get('description'),
-                    type: view === 'new' ? 'Bestilling' : 'Feil',
+                    type: view === 'new' ? 'Bestilling' : 'Feilrapport',
                     requested_by: user.email,
                     status: 'Ny'
                 }]);
 
-                setLoading(false);
                 if (!error) {
-                    setSuccess(true);
-                    await fetchData(); // Oppdaterer listen umiddelbart
-                    setTimeout(() => {
-                        setSuccess(false);
-                        setView('dashboard');
-                    }, 2000);
-                } else {
-                    alert("Databasefeil: " + error.message);
+                    showStatus("Suksess! Saken er registrert.");
+                    e.target.reset();
+                    setTimeout(() => setView('dashboard'), 1500);
                 }
+                setLoading(false);
             };
 
-            // Hvis ikke logget inn, vis den proffe login-siden fra i sted...
-            if (!user) return <div className="p-20 text-center">Logger inn... (Sørg for at du har laget bruker i Supabase)</div>;
+            const updateRequestStatus = async (id, newStatus) => {
+                const { error } = await supabaseClient.from('requests').update({ status: newStatus }).eq('id', id);
+                if (!error) showStatus("Status oppdatert");
+            };
+
+            const showStatus = (msg) => {
+                setStatusMsg(msg);
+                setTimeout(() => setStatusMsg(null), 3000);
+            };
+
+            if (!user) return <div className="h-screen flex items-center justify-center font-medium text-gray-400 tracking-widest animate-pulse">AUTENTISERER...</div>;
+
+            const isAdmin = user.email === ADMIN_EMAIL;
 
             return (
                 <div className="flex min-h-screen">
-                    {/* Sidebar - Proff versjon */}
-                    <nav className="w-72 bg-white border-r border-gray-100 p-8 fixed h-full flex flex-col">
-                        <div className="mb-12 flex items-center gap-2">
-                            <div className="w-8 h-8 ikea-blue rounded-md"></div>
-                            <h1 className="font-extrabold text-xl tracking-tighter">RCMP</h1>
+                    {/* Status Toast */}
+                    {statusMsg && (
+                        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white px-6 py-3 rounded-full shadow-2xl text-sm font-bold animate-bounce">
+                            {statusMsg}
                         </div>
-                        
-                        <div className="space-y-2 flex-1">
-                            <button onClick={() => setView('dashboard')} className={`w-full text-left p-3 rounded-xl font-semibold ${view === 'dashboard' ? 'bg-blue-50 text-[#0058AB]' : 'text-gray-400'}`}>Oversikt</button>
-                            <button onClick={() => setView('new')} className={`w-full text-left p-3 rounded-xl font-semibold ${view === 'new' ? 'bg-blue-50 text-[#0058AB]' : 'text-gray-400'}`}>Ny bestilling</button>
-                            {user.email === ADMIN_EMAIL && (
-                                <button onClick={() => setView('admin')} className={`w-full text-left p-3 rounded-xl font-semibold mt-10 ${view === 'admin' ? 'bg-yellow-400 text-black' : 'bg-gray-50'}`}>Admin Panel</button>
+                    )}
+
+                    {/* Sidebar */}
+                    <aside className="w-72 bg-white border-r border-gray-100 flex flex-col fixed h-full z-20">
+                        <div className="p-10">
+                            <div className="flex items-center gap-3 mb-1">
+                                <div className="w-6 h-6 ikea-blue rounded-sm"></div>
+                                <h1 className="font-black text-xl tracking-tighter uppercase">RCMP</h1>
+                            </div>
+                            <p className="text-[10px] font-bold text-gray-400 tracking-widest uppercase">Norway | Exp. Design</p>
+                        </div>
+
+                        <nav className="px-4 flex-1 space-y-1">
+                            <NavButton active={view === 'dashboard'} onClick={() => setView('dashboard')} label="Oversikt" icon="󱓞" />
+                            <NavButton active={view === 'new'} onClick={() => setView('new')} label="Ny bestilling" icon="󰏓" />
+                            <NavButton active={view === 'error'} onClick={() => setView('error')} label="Rapporter feil" icon="󰅚" />
+                            
+                            {isAdmin && (
+                                <div className="pt-10">
+                                    <p className="px-4 text-[10px] font-black text-gray-300 uppercase tracking-[0.2em] mb-4">Management</p>
+                                    <NavButton active={view === 'admin'} onClick={() => setView('admin')} label="Admin Panel" icon="󰒓" isSpecial />
+                                </div>
                             )}
+                        </nav>
+
+                        <div className="p-6 mt-auto">
+                            <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+                                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter mb-1">Bruker</p>
+                                <p className="text-xs font-bold text-gray-700 truncate mb-3">{user.email}</p>
+                                <button onClick={() => supabaseClient.auth.signOut()} className="text-[10px] font-black text-red-500 hover:text-red-700 uppercase tracking-widest transition-colors">Logg ut</button>
+                            </div>
                         </div>
-                    </nav>
+                    </aside>
 
                     {/* Main Content */}
-                    <main className="flex-1 ml-72 p-16">
-                        {success && (
-                            <div className="fixed top-10 right-10 bg-green-500 text-white px-6 py-3 rounded-2xl shadow-2xl success-animation z-50">
-                                ✨ Forespørsel er sendt og lagret!
-                            </div>
-                        )}
-
-                        <h2 className="text-4xl font-extrabold mb-10 tracking-tight">
-                            {view === 'dashboard' ? 'Aktive saker' : 'Opprett ny'}
-                        </h2>
-
-                        {view === 'dashboard' && (
-                            <div className="space-y-4">
-                                {requests.length === 0 ? (
-                                    <div className="bg-white p-12 rounded-3xl border border-gray-50 text-center text-gray-400">
-                                        Ingen saker funnet. Prøv å sende inn en ny bestilling!
-                                    </div>
-                                ) : (
-                                    requests.map(req => (
-                                        <div key={req.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-50 flex justify-between items-center">
-                                            <div>
-                                                <span className="text-[10px] font-bold uppercase bg-blue-50 text-blue-600 px-2 py-1 rounded-md">{req.type}</span>
-                                                <h3 className="text-lg font-bold mt-1">{req.title}</h3>
-                                                <p className="text-gray-500 text-sm">{req.description}</p>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className="text-xs font-bold text-gray-300 uppercase mb-1">Status</p>
-                                                <span className="bg-gray-100 px-3 py-1 rounded-full text-xs font-bold">{req.status}</span>
-                                            </div>
-                                        </div>
-                                    ))
-                                )}
-                            </div>
-                        )}
-
-                        {view === 'new' && (
-                            <form onSubmit={handleSubmit} className="bg-white p-10 rounded-3xl shadow-sm border border-gray-50 max-w-2xl">
-                                <div className="space-y-6">
-                                    <input name="title" placeholder="Tittel" className="w-full p-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500" required />
-                                    <textarea name="description" placeholder="Beskrivelse" className="w-full p-4 bg-gray-50 rounded-2xl h-40 outline-none focus:ring-2 focus:ring-blue-500" required></textarea>
-                                    <button disabled={loading} className="w-full ikea-blue text-white py-4 rounded-2xl font-bold">
-                                        {loading ? 'Sender...' : 'Send forespørsel ➜'}
-                                    </button>
+                    <main className="flex-1 ml-72">
+                        <header className="sticky top-0 z-10 glass-header border-b border-gray-50 px-12 py-8">
+                            <div className="max-w-5xl mx-auto flex justify-between items-end">
+                                <div>
+                                    <h2 className="text-3xl font-black tracking-tighter text-gray-900">
+                                        {view === 'dashboard' ? 'Dashbord' : view === 'admin' ? 'Systemadministrasjon' : 'Ny forespørsel'}
+                                    </h2>
+                                    <p className="text-sm text-gray-500 font-medium mt-1">Velkommen til RCMP Experience Design portalen.</p>
                                 </div>
-                            </form>
-                        )}
+                                <div className="text-right text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                                    {new Date().toLocaleDateString('no-NO', { day: 'numeric', month: 'long' })}
+                                </div>
+                            </div>
+                        </header>
+
+                        <section className="p-12 max-w-5xl mx-auto">
+                            {view === 'dashboard' && (
+                                <div className="space-y-4">
+                                    {requests.filter(r => r.requested_by === user.email).length === 0 ? (
+                                        <EmptyState msg="Du har ingen aktive saker ennå." />
+                                    ) : (
+                                        requests.filter(r => r.requested_by === user.email).map(req => (
+                                            <RequestCard key={req.id} req={req} />
+                                        ))
+                                    )}
+                                </div>
+                            )}
+
+                            {view === 'admin' && isAdmin && (
+                                <div className="space-y-6">
+                                    <div className="flex gap-4 mb-8">
+                                        <div className="bg-white p-6 rounded-2xl border border-gray-100 flex-1 card-shadow text-center">
+                                            <p className="text-[10px] font-black text-gray-400 uppercase mb-1">Saker totalt</p>
+                                            <p className="text-2xl font-black text-gray-900">{requests.length}</p>
+                                        </div>
+                                        <div className="bg-white p-6 rounded-2xl border border-gray-100 flex-1 card-shadow text-center">
+                                            <p className="text-[10px] font-black text-gray-400 uppercase mb-1">Nye</p>
+                                            <p className="text-2xl font-black text-[#0058AB]">{requests.filter(r => r.status === 'Ny').length}</p>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="bg-white rounded-3xl border border-gray-100 card-shadow overflow-hidden">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead className="bg-gray-50 border-b border-gray-100">
+                                                <tr>
+                                                    <th className="p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Saksdetaljer</th>
+                                                    <th className="p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest">Bruker</th>
+                                                    <th className="p-6 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Handling</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-50">
+                                                {requests.map(req => (
+                                                    <tr key={req.id} className="hover:bg-gray-50 transition-colors">
+                                                        <td className="p-6">
+                                                            <div className="flex items-center gap-3 mb-1">
+                                                                <span className={`w-2 h-2 rounded-full ${req.type === 'Feilrapport' ? 'bg-red-400' : 'bg-blue-400'}`}></span>
+                                                                <p className="font-bold text-gray-900">{req.title}</p>
+                                                            </div>
+                                                            <p className="text-xs text-gray-400 ml-5 line-clamp-1">{req.description}</p>
+                                                        </td>
+                                                        <td className="p-6 text-xs font-semibold text-gray-500">{req.requested_by.split('@')[0]}</td>
+                                                        <td className="p-6 text-right">
+                                                            <select 
+                                                                value={req.status} 
+                                                                onChange={(e) => updateRequestStatus(req.id, e.target.value)}
+                                                                className="text-[10px] font-black uppercase border-0 bg-gray-100 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[#0058AB]"
+                                                            >
+                                                                <option value="Ny">Ny</option>
+                                                                <option value="I arbeid">I arbeid</option>
+                                                                <option value="Venter">Venter</option>
+                                                                <option value="Fullført">Fullført</option>
+                                                            </select>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+
+                            {(view === 'new' || view === 'error') && (
+                                <div className="bg-white p-12 rounded-[2.5rem] card-shadow border border-gray-50 max-w-2xl mx-auto">
+                                    <form onSubmit={handleSubmit} className="space-y-8">
+                                        <div>
+                                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Tittel på saken</label>
+                                            <input name="title" placeholder="Kort og beskrivende..." className="w-full p-5 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-[#0058AB] border border-transparent focus:bg-white transition-all font-medium" required />
+                                        </div>
+                                        <div>
+                                            <label className="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-1">Utdypende informasjon</label>
+                                            <textarea name="description" placeholder="Beskriv behovet eller feilen..." className="w-full p-5 bg-gray-50 rounded-2xl h-48 outline-none focus:ring-2 focus:ring-[#0058AB] border border-transparent focus:bg-white transition-all font-medium" required></textarea>
+                                        </div>
+                                        <button disabled={loading} className="w-full ikea-blue text-white py-5 rounded-2xl font-black uppercase tracking-widest text-xs hover:shadow-2xl hover:-translate-y-1 transition-all duration-300">
+                                            {loading ? 'Sender...' : 'Send forespørsel ➜'}
+                                        </button>
+                                    </form>
+                                </div>
+                            )}
+                        </section>
                     </main>
                 </div>
             );
         };
+
+        const NavButton = ({ label, active, onClick, isSpecial }) => (
+            <button onClick={onClick} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-sm font-bold transition-all ${active ? (isSpecial ? 'bg-yellow-400 text-black' : 'sidebar-active') : 'text-gray-400 hover:bg-gray-50 hover:text-gray-600'}`}>
+                {label}
+            </button>
+        );
+
+        const RequestCard = ({ req }) => (
+            <div className="bg-white p-6 rounded-2xl border border-gray-100 card-shadow flex justify-between items-center group hover:border-[#0058AB] transition-colors">
+                <div className="flex items-center gap-6">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-lg ${req.type === 'Feilrapport' ? 'bg-red-50 text-red-500' : 'bg-blue-50 text-blue-500'}`}>
+                        {req.type === 'Feilrapport' ? '⚠️' : '📂'}
+                    </div>
+                    <div>
+                        <div className="flex items-center gap-2 mb-1">
+                            <h3 className="font-bold text-gray-900">{req.title}</h3>
+                            <span className="text-[10px] font-bold text-gray-300 uppercase tracking-tighter">• {new Date(req.created_at).toLocaleDateString()}</span>
+                        </div>
+                        <p className="text-sm text-gray-500 line-clamp-1">{req.description}</p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-6">
+                    <span className={`text-[10px] font-black uppercase px-3 py-1 rounded-full ${req.status === 'Fullført' ? 'bg-green-100 text-green-700' : 'bg-yellow-50 text-yellow-700'}`}>
+                        {req.status}
+                    </span>
+                </div>
+            </div>
+        );
+
+        const EmptyState = ({ msg }) => (
+            <div className="bg-white py-24 rounded-[3rem] border border-dashed border-gray-200 text-center">
+                <p className="text-sm font-semibold text-gray-400 tracking-tight">{msg}</p>
+            </div>
+        );
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
