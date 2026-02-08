@@ -3,28 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RCMP | Experience Design Portal</title>
+    <title>RCMP | Experience Design</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; letter-spacing: -0.01em; }
-        .ikea-gradient { background: linear-gradient(135deg, #0058AB 0%, #003e78 100%); }
-        .glass-card { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
-        .sidebar-item-active { background-color: #f3f4f6; border-left: 4px solid #0058AB; color: #0058AB; }
+        .ikea-blue { background-color: #0058AB; }
+        .success-animation { animation: slideIn 0.5s ease-out forwards; }
+        @keyframes slideIn { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     </style>
 </head>
-<body class="bg-[#f8fafc] text-[#111111]">
+<body class="bg-[#F8FAFC]">
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        // --- KONFIGURASJON ---
-        // SJEKK AT DET IKKE ER MELLOMROM I URL-EN UNDER
         const SUPABASE_URL = 'https://mgkhhsiwnndsy rrakdho.supabase.co'.replace(/\s/g, ''); 
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1na2hoc2l3bm5kc3lycmFrZGhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA1ODkwMDksImV4cCI6MjA4NjE2NTAwOX0.gIeRH6Ckck-K59-zUi7G3KeB0hoCR0bjpQ5h4W9Ec6Y';
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -35,189 +33,117 @@
             const [view, setView] = useState('dashboard');
             const [requests, setRequests] = useState([]);
             const [loading, setLoading] = useState(false);
-            const [authLoading, setAuthLoading] = useState(true);
+            const [success, setSuccess] = useState(false);
 
             useEffect(() => {
                 supabaseClient.auth.getSession().then(({ data: { session } }) => {
                     setUser(session?.user ?? null);
-                    setAuthLoading(false);
                 });
-                const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((_event, session) => {
-                    setUser(session?.user ?? null);
-                });
-                return () => subscription.unsubscribe();
+                fetchData();
             }, []);
 
-            useEffect(() => { if (user) fetchRequests(); }, [user]);
-
-            const fetchRequests = async () => {
+            const fetchData = async () => {
                 const { data, error } = await supabaseClient.from('requests').select('*').order('created_at', { ascending: false });
-                if (!error) setRequests(data || []);
+                if (!error) setRequests(data);
             };
 
-            const handleLogin = async (e) => {
+            const handleSubmit = async (e) => {
                 e.preventDefault();
                 setLoading(true);
-                const { error } = await supabaseClient.auth.signInWithPassword({
-                    email: e.target.email.value,
-                    password: e.target.password.value
-                });
-                if (error) alert("Innlogging feilet: " + error.message);
+                const formData = new FormData(e.target);
+                
+                const { error } = await supabaseClient.from('requests').insert([{
+                    title: formData.get('title'),
+                    description: formData.get('description'),
+                    type: view === 'new' ? 'Bestilling' : 'Feil',
+                    requested_by: user.email,
+                    status: 'Ny'
+                }]);
+
                 setLoading(false);
+                if (!error) {
+                    setSuccess(true);
+                    await fetchData(); // Oppdaterer listen umiddelbart
+                    setTimeout(() => {
+                        setSuccess(false);
+                        setView('dashboard');
+                    }, 2000);
+                } else {
+                    alert("Databasefeil: " + error.message);
+                }
             };
 
-            if (authLoading) return <div className="h-screen flex items-center justify-center text-gray-400 animate-pulse font-medium">Laster portal...</div>;
-
-            if (!user) return (
-                <div className="h-screen flex items-center justify-center ikea-gradient p-6">
-                    <div className="glass-card p-10 rounded-3xl shadow-2xl w-full max-w-md transform transition-all hover:scale-[1.01]">
-                        <div className="mb-8">
-                            <div className="w-16 h-16 bg-[#FFCC00] rounded-2xl flex items-center justify-center mb-6 shadow-lg">
-                                <span className="text-[#0058AB] font-black text-2xl">IK</span>
-                            </div>
-                            <h1 className="text-3xl font-extrabold tracking-tighter text-gray-900">RCMP Portal</h1>
-                            <p className="text-gray-500 font-medium">Experience Design Norway</p>
-                        </div>
-                        <form onSubmit={handleLogin} className="space-y-4">
-                            <div>
-                                <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 ml-1">Bruker</label>
-                                <input name="email" type="email" placeholder="navn@ikea.com" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#0058AB] transition-all" required />
-                            </div>
-                            <div>
-                                <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 mb-2 ml-1">Passord</label>
-                                <input name="password" type="password" placeholder="••••••••" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#0058AB] transition-all" required />
-                            </div>
-                            <button disabled={loading} className="w-full bg-[#0058AB] text-white py-4 rounded-2xl font-bold hover:bg-[#003e78] transition-all shadow-lg hover:shadow-xl active:scale-95 duration-200">
-                                {loading ? 'Autentiserer...' : 'Logg inn'}
-                            </button>
-                        </form>
-                    </div>
-                </div>
-            );
-
-            const isAdmin = user.email === ADMIN_EMAIL;
+            // Hvis ikke logget inn, vis den proffe login-siden fra i sted...
+            if (!user) return <div className="p-20 text-center">Logger inn... (Sørg for at du har laget bruker i Supabase)</div>;
 
             return (
-                <div className="flex min-h-screen bg-[#f8fafc]">
-                    {/* Modern Sidebar */}
-                    <nav className="w-80 bg-white border-r border-gray-100 flex flex-col fixed h-full shadow-sm z-10">
-                        <div className="p-8 mb-4">
-                            <div className="flex items-center gap-3 mb-2">
-                                <div className="w-8 h-8 bg-[#0058AB] rounded-lg flex items-center justify-center text-[10px] font-black text-white">IK</div>
-                                <h2 className="font-black text-xl tracking-tighter">RCMP<span className="font-light text-gray-400 ml-1 font-sans text-sm tracking-normal">NORWAY</span></h2>
-                            </div>
+                <div className="flex min-h-screen">
+                    {/* Sidebar - Proff versjon */}
+                    <nav className="w-72 bg-white border-r border-gray-100 p-8 fixed h-full flex flex-col">
+                        <div className="mb-12 flex items-center gap-2">
+                            <div className="w-8 h-8 ikea-blue rounded-md"></div>
+                            <h1 className="font-extrabold text-xl tracking-tighter">RCMP</h1>
                         </div>
-
-                        <div className="px-4 flex-1 space-y-1">
-                            <SidebarLink active={view === 'dashboard'} onClick={() => setView('dashboard')} label="Oversikt" icon="📊" />
-                            <SidebarLink active={view === 'new'} onClick={() => setView('new')} label="Ny bestilling" icon="✨" />
-                            <SidebarLink active={view === 'error'} onClick={() => setView('error')} label="Rapporter feil" icon="⚠️" />
-                            
-                            {isAdmin && (
-                                <div className="mt-10 pt-6 border-t border-gray-50">
-                                    <p className="px-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Admin Kontroll</p>
-                                    <SidebarLink active={view === 'admin'} onClick={() => setView('admin')} label="Admin Panel" icon="🛡️" variant="admin" />
-                                </div>
+                        
+                        <div className="space-y-2 flex-1">
+                            <button onClick={() => setView('dashboard')} className={`w-full text-left p-3 rounded-xl font-semibold ${view === 'dashboard' ? 'bg-blue-50 text-[#0058AB]' : 'text-gray-400'}`}>Oversikt</button>
+                            <button onClick={() => setView('new')} className={`w-full text-left p-3 rounded-xl font-semibold ${view === 'new' ? 'bg-blue-50 text-[#0058AB]' : 'text-gray-400'}`}>Ny bestilling</button>
+                            {user.email === ADMIN_EMAIL && (
+                                <button onClick={() => setView('admin')} className={`w-full text-left p-3 rounded-xl font-semibold mt-10 ${view === 'admin' ? 'bg-yellow-400 text-black' : 'bg-gray-50'}`}>Admin Panel</button>
                             )}
-                        </div>
-
-                        <div className="p-6 bg-gray-50 m-4 rounded-2xl">
-                            <p className="text-[10px] font-bold text-gray-400 uppercase mb-2">Innlogget som</p>
-                            <p className="text-sm font-semibold text-gray-800 truncate mb-4">{user.email}</p>
-                            <button onClick={() => supabaseClient.auth.signOut()} className="w-full py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold text-red-500 hover:bg-red-50 transition-colors">Logg ut</button>
                         </div>
                     </nav>
 
-                    {/* Content Area */}
-                    <main className="flex-1 ml-80 p-12">
-                        <div className="max-w-5xl mx-auto">
-                            <header className="mb-12 flex justify-between items-end">
-                                <div>
-                                    <h2 className="text-4xl font-extrabold tracking-tighter text-gray-900">
-                                        {view === 'dashboard' ? 'Dashbord' : view === 'new' ? 'Ny Bestilling' : view === 'error' ? 'Rapporter Feil' : 'Admin'}
-                                    </h2>
-                                    <p className="text-gray-500 font-medium mt-2">Velkommen tilbake til Experience Design portalen.</p>
-                                </div>
-                            </header>
+                    {/* Main Content */}
+                    <main className="flex-1 ml-72 p-16">
+                        {success && (
+                            <div className="fixed top-10 right-10 bg-green-500 text-white px-6 py-3 rounded-2xl shadow-2xl success-animation z-50">
+                                ✨ Forespørsel er sendt og lagret!
+                            </div>
+                        )}
 
-                            {view === 'dashboard' && (
-                                <div className="grid gap-4">
-                                    {requests.length === 0 ? (
-                                        <div className="bg-white p-20 rounded-3xl text-center border border-gray-100 shadow-sm">
-                                            <span className="text-4xl mb-4 block">☕</span>
-                                            <p className="text-gray-400 font-medium">Ingen aktive saker akkurat nå.</p>
-                                        </div>
-                                    ) : (
-                                        requests.filter(r => r.requested_by === user.email || isAdmin).map(req => (
-                                            <div key={req.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-50 hover:shadow-md transition-all flex justify-between items-center group">
-                                                <div className="flex items-center gap-6">
-                                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-xl ${req.type === 'Error Report' ? 'bg-red-50' : 'bg-blue-50'}`}>
-                                                        {req.type === 'Error Report' ? '⚠️' : '📊'}
-                                                    </div>
-                                                    <div>
-                                                        <h3 className="font-bold text-lg text-gray-800 group-hover:text-[#0058AB] transition-colors">{req.title}</h3>
-                                                        <p className="text-sm text-gray-500 line-clamp-1">{req.description}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-4">
-                                                    <div className="text-right mr-4">
-                                                        <p className="text-[10px] font-bold text-gray-300 uppercase leading-none mb-1">Status</p>
-                                                        <span className={`text-xs font-bold px-3 py-1 rounded-full ${getStatusStyle(req.status)}`}>{req.status}</span>
-                                                    </div>
-                                                    <button className="w-10 h-10 rounded-full hover:bg-gray-50 flex items-center justify-center text-gray-300 transition-colors">➜</button>
-                                                </div>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-                            )}
+                        <h2 className="text-4xl font-extrabold mb-10 tracking-tight">
+                            {view === 'dashboard' ? 'Aktive saker' : 'Opprett ny'}
+                        </h2>
 
-                            {(view === 'new' || view === 'error') && (
-                                <div className="bg-white p-10 rounded-3xl shadow-sm border border-gray-50">
-                                    <form className="space-y-6">
-                                        <div className="grid grid-cols-2 gap-6">
-                                            <div className="col-span-2">
-                                                <label className="block text-sm font-bold text-gray-700 mb-2 ml-1">Hva trenger du hjelp med?</label>
-                                                <input placeholder="Kort tittel..." className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#0058AB] transition-all" />
+                        {view === 'dashboard' && (
+                            <div className="space-y-4">
+                                {requests.length === 0 ? (
+                                    <div className="bg-white p-12 rounded-3xl border border-gray-50 text-center text-gray-400">
+                                        Ingen saker funnet. Prøv å sende inn en ny bestilling!
+                                    </div>
+                                ) : (
+                                    requests.map(req => (
+                                        <div key={req.id} className="bg-white p-6 rounded-2xl shadow-sm border border-gray-50 flex justify-between items-center">
+                                            <div>
+                                                <span className="text-[10px] font-bold uppercase bg-blue-50 text-blue-600 px-2 py-1 rounded-md">{req.type}</span>
+                                                <h3 className="text-lg font-bold mt-1">{req.title}</h3>
+                                                <p className="text-gray-500 text-sm">{req.description}</p>
                                             </div>
-                                            <div className="col-span-2">
-                                                <label className="block text-sm font-bold text-gray-700 mb-2 ml-1">Utdypende informasjon</label>
-                                                <textarea placeholder="Beskriv behovet eller feilen i detalj..." className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl h-48 outline-none focus:ring-2 focus:ring-[#0058AB] transition-all" />
+                                            <div className="text-right">
+                                                <p className="text-xs font-bold text-gray-300 uppercase mb-1">Status</p>
+                                                <span className="bg-gray-100 px-3 py-1 rounded-full text-xs font-bold">{req.status}</span>
                                             </div>
                                         </div>
-                                        <button className="px-8 py-4 bg-[#0058AB] text-white rounded-2xl font-bold hover:shadow-xl hover:bg-[#003e78] transition-all flex items-center gap-2 group">
-                                            Send forespørsel <span className="group-hover:translate-x-1 transition-transform">➜</span>
-                                        </button>
-                                    </form>
+                                    ))
+                                )}
+                            </div>
+                        )}
+
+                        {view === 'new' && (
+                            <form onSubmit={handleSubmit} className="bg-white p-10 rounded-3xl shadow-sm border border-gray-50 max-w-2xl">
+                                <div className="space-y-6">
+                                    <input name="title" placeholder="Tittel" className="w-full p-4 bg-gray-50 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500" required />
+                                    <textarea name="description" placeholder="Beskrivelse" className="w-full p-4 bg-gray-50 rounded-2xl h-40 outline-none focus:ring-2 focus:ring-blue-500" required></textarea>
+                                    <button disabled={loading} className="w-full ikea-blue text-white py-4 rounded-2xl font-bold">
+                                        {loading ? 'Sender...' : 'Send forespørsel ➜'}
+                                    </button>
                                 </div>
-                            )}
-                        </div>
+                            </form>
+                        )}
                     </main>
                 </div>
             );
-        };
-
-        const SidebarLink = ({ label, icon, active, onClick, variant }) => (
-            <button 
-                onClick={onClick}
-                className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl font-semibold transition-all duration-200 ${
-                    active 
-                    ? (variant === 'admin' ? 'bg-yellow-400 text-black shadow-lg shadow-yellow-100' : 'bg-blue-50 text-[#0058AB]') 
-                    : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                }`}
-            >
-                <span className="text-xl">{icon}</span>
-                {label}
-            </button>
-        );
-
-        const getStatusStyle = (status) => {
-            switch(status) {
-                case 'Completed': return 'bg-green-100 text-green-700';
-                case 'In Progress': return 'bg-blue-100 text-[#0058AB]';
-                case 'New': return 'bg-yellow-100 text-yellow-800';
-                default: return 'bg-gray-100 text-gray-600';
-            }
         };
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
