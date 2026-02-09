@@ -15,9 +15,10 @@
         .ikea-blue { background-color: #0058AB; }
         .sidebar-item { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); border-radius: 10px; margin: 2px 12px; }
         .sidebar-active { background-color: #f5f8ff; color: #0058AB !important; font-weight: 700; box-shadow: inset 4px 0 0 -1px #0058AB; }
-        .glass-card { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(235, 238, 242, 1); box-shadow: 0 4px 12px -2px rgba(16, 24, 40, 0.04); }
+        .glass-card { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(235, 238, 242, 1); box-shadow: 0 4px 12px -2px rgba(16, 24, 40, 0.04); overflow: hidden; }
         .btn-animate { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
         .btn-animate:active { transform: scale(0.95); }
+        .image-overlay { background: linear-gradient(to bottom, rgba(255,255,255,0.7) 0%, rgba(255,255,255,1) 80%); }
     </style>
 </head>
 <body>
@@ -65,7 +66,7 @@
 
             const isAdmin = user && ['henrik.h.wiik@gmail.com', 'marthe.epost@ingka.ikea.com', 'karolina.epost@ingka.ikea.com'].includes(user.email);
 
-            if (!user) return <div className="p-20 text-center font-bold italic uppercase tracking-widest text-gray-300">Loading RCMP...</div>;
+            if (!user) return <div className="p-20 text-center font-bold tracking-widest text-gray-300 uppercase">Loading RCMP...</div>;
 
             const activeInsights = insights.filter(i => i.is_active);
 
@@ -79,7 +80,7 @@
                             <button onClick={() => setView('insights')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'insights' ? 'sidebar-active' : 'text-gray-500'}`}>💡 Insight Engine</button>
                             <button onClick={() => setView('new')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'new' ? 'sidebar-active' : 'text-gray-500'}`}>✨ Ny forespørsel</button>
                             {isAdmin && (
-                                <div className="mt-8 pt-8 border-t border-gray-100">
+                                <div className="mt-8 pt-8 border-t border-gray-50">
                                     <button onClick={() => setView('admin')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-bold sidebar-item ${view === 'admin' ? 'sidebar-active' : 'text-red-400'}`}>🛡️ Control Center</button>
                                 </div>
                             )}
@@ -98,7 +99,7 @@
                                                 <div>
                                                     <span className="bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">{req.type}</span>
                                                     <h3 className="text-2xl font-black mt-3 text-gray-900">{req.title}</h3>
-                                                    <p className="text-sm text-gray-400 font-medium italic">Saksbehandler: {req.assigned_to}</p>
+                                                    <p className="text-sm text-gray-400 font-medium">Behandles av: {req.assigned_to}</p>
                                                 </div>
                                                 <span className="bg-gray-900 text-white px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest">{req.status}</span>
                                             </div>
@@ -116,65 +117,80 @@
                                         activeInsights.length === 4 ? 'grid-cols-2' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
                                     }`}>
                                         {activeInsights.map((item, idx) => (
-                                            <div key={item.id} className={`glass-card p-10 rounded-[3rem] flex flex-col justify-between min-h-[320px] ${activeInsights.length === 5 && idx < 2 ? 'md:col-span-1.5' : ''}`}>
-                                                <div>
+                                            <div key={item.id} className="glass-card rounded-[3rem] flex flex-col justify-between min-h-[380px] relative">
+                                                {item.image_url && (
+                                                    <div className="absolute top-0 left-0 w-full h-48 z-0">
+                                                        <img src={item.image_url} className="w-full h-full object-cover" alt="" />
+                                                        <div className="absolute inset-0 image-overlay"></div>
+                                                    </div>
+                                                )}
+                                                <div className="p-10 relative z-10 pt-32">
                                                     <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">{item.tag}</span>
                                                     <h3 className="text-2xl font-black mt-4 mb-4 text-gray-900 leading-tight">{item.title}</h3>
-                                                    <p className="text-gray-500 font-medium text-sm leading-relaxed line-clamp-4">{item.description}</p>
+                                                    <p className="text-gray-500 font-medium text-sm leading-relaxed">{item.description}</p>
                                                 </div>
-                                                <button style={{backgroundColor: item.color_hex}} className="mt-8 w-full text-white py-4 rounded-2xl font-bold text-xs uppercase tracking-widest btn-animate">
-                                                    {item.button_text}
-                                                </button>
+                                                <div className="p-10 pt-0 relative z-10">
+                                                    <button style={{backgroundColor: item.color_hex}} className="w-full text-white py-4 rounded-2xl font-bold text-xs uppercase tracking-widest btn-animate">
+                                                        {item.button_text} ➜
+                                                    </button>
+                                                </div>
                                             </div>
                                         ))}
                                     </div>
                                 </div>
                             )}
 
-                            {view === 'admin' && adminSubView === 'insights' && (
-                                <div className="space-y-8">
-                                    <h2 className="text-3xl font-black">Styr Insight Engine</h2>
-                                    <div className="grid grid-cols-1 gap-4">
-                                        {insights.map(item => (
-                                            <div key={item.id} className="glass-card p-6 rounded-3xl flex items-center gap-6">
-                                                <input type="checkbox" checked={item.is_active} onChange={(e) => updateInsight(item.id, 'is_active', e.target.checked)} className="w-6 h-6 rounded" />
-                                                <div className="grid grid-cols-4 gap-4 flex-1">
-                                                    <input defaultValue={item.title} onBlur={(e) => updateInsight(item.id, 'title', e.target.value)} className="bg-white border p-3 rounded-xl text-xs font-bold" placeholder="Tittel" />
-                                                    <input defaultValue={item.tag} onBlur={(e) => updateInsight(item.id, 'tag', e.target.value)} className="bg-white border p-3 rounded-xl text-xs font-bold" placeholder="Tag" />
-                                                    <input defaultValue={item.button_text} onBlur={(e) => updateInsight(item.id, 'button_text', e.target.value)} className="bg-white border p-3 rounded-xl text-xs font-bold" placeholder="Knapp" />
-                                                    <input type="color" defaultValue={item.color_hex} onChange={(e) => updateInsight(item.id, 'color_hex', e.target.value)} className="w-full h-10 rounded-xl" />
-                                                    <textarea defaultValue={item.description} onBlur={(e) => updateInsight(item.id, 'description', e.target.value)} className="col-span-4 bg-white border p-3 rounded-xl text-xs" placeholder="Beskrivelse"></textarea>
-                                                </div>
-                                            </div>
-                                        ))}
+                            {view === 'admin' && (
+                                <div className="space-y-10">
+                                    <div className="flex gap-4 p-1 bg-gray-100 rounded-2xl w-fit">
+                                        <button onClick={() => setAdminSubView('tasks')} className={`px-6 py-2 rounded-xl text-xs font-bold ${adminSubView === 'tasks' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>Saker</button>
+                                        <button onClick={() => setAdminSubView('insights')} className={`px-6 py-2 rounded-xl text-xs font-bold ${adminSubView === 'insights' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>Insight Engine</button>
                                     </div>
-                                    <button onClick={() => setAdminSubView('tasks')} className="text-sm font-bold text-blue-600">← Tilbake til oppgaver</button>
-                                </div>
-                            )}
 
-                            {view === 'admin' && adminSubView === 'tasks' && (
-                                <div className="space-y-6">
-                                    <div className="flex justify-between items-center">
-                                        <h2 className="text-3xl font-black">Oppgavebehandling</h2>
-                                        <button onClick={() => setAdminSubView('insights')} className="bg-gray-900 text-white px-6 py-2 rounded-xl text-xs font-bold">Admin Insights Engine</button>
-                                    </div>
-                                    <div className="glass-card rounded-[2rem] overflow-hidden">
-                                        <table className="w-full text-left">
-                                            <tbody className="divide-y divide-gray-50">
-                                                {requests.map(req => (
-                                                    <tr key={req.id}>
-                                                        <td className="p-6 font-bold">{req.title}</td>
-                                                        <td className="p-6 text-xs text-gray-400">{req.requested_by}</td>
-                                                        <td className="p-6">
-                                                            <select value={req.assigned_to} onChange={(e) => updateInsight(req.id, 'assigned_to', e.target.value)} className="bg-gray-50 p-2 rounded-lg text-[10px] font-black uppercase">
-                                                                {TEAM.map(t => <option key={t}>{t}</option>)}
-                                                            </select>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
+                                    {adminSubView === 'insights' && (
+                                        <div className="grid grid-cols-1 gap-6">
+                                            {insights.map(item => (
+                                                <div key={item.id} className="glass-card p-8 rounded-3xl space-y-4">
+                                                    <div className="flex justify-between items-center">
+                                                        <h4 className="font-bold text-gray-900">Boble #{item.id}</h4>
+                                                        <label className="flex items-center gap-2 text-xs font-bold">
+                                                            <input type="checkbox" checked={item.is_active} onChange={(e) => updateInsight(item.id, 'is_active', e.target.checked)} /> Aktiv
+                                                        </label>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <input defaultValue={item.title} onBlur={(e) => updateInsight(item.id, 'title', e.target.value)} className="p-3 bg-gray-50 rounded-xl text-xs font-bold outline-none" placeholder="Tittel" />
+                                                        <input defaultValue={item.tag} onBlur={(e) => updateInsight(item.id, 'tag', e.target.value)} className="p-3 bg-gray-50 rounded-xl text-xs font-bold outline-none" placeholder="Tag" />
+                                                        <input defaultValue={item.image_url} onBlur={(e) => updateInsight(item.id, 'image_url', e.target.value)} className="col-span-2 p-3 bg-gray-50 rounded-xl text-xs outline-none" placeholder="Bilde-URL (https://...)" />
+                                                        <textarea defaultValue={item.description} onBlur={(e) => updateInsight(item.id, 'description', e.target.value)} className="col-span-2 p-3 bg-gray-50 rounded-xl text-xs h-20 outline-none" placeholder="Beskrivelse"></textarea>
+                                                        <input defaultValue={item.button_text} onBlur={(e) => updateInsight(item.id, 'button_text', e.target.value)} className="p-3 bg-gray-50 rounded-xl text-xs outline-none" placeholder="Knappetekst" />
+                                                        <input type="color" defaultValue={item.color_hex} onChange={(e) => updateInsight(item.id, 'color_hex', e.target.value)} className="w-full h-10 rounded-xl" />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {adminSubView === 'tasks' && (
+                                        <div className="glass-card rounded-3xl overflow-hidden">
+                                            <table className="w-full text-left">
+                                                <tbody className="divide-y divide-gray-50 text-sm">
+                                                    {requests.map(req => (
+                                                        <tr key={req.id}>
+                                                            <td className="p-6 font-bold">{req.title}</td>
+                                                            <td className="p-6">
+                                                                <select value={req.assigned_to} onChange={(e) => updateInsight(req.id, 'assigned_to', e.target.value)} className="bg-gray-50 p-2 rounded-lg text-[10px] font-black uppercase outline-none">
+                                                                    {TEAM.map(t => <option key={t}>{t}</option>)}
+                                                                </select>
+                                                            </td>
+                                                            <td className="p-6 text-right">
+                                                                <span className="text-[10px] font-black uppercase text-gray-400">{req.status}</span>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
