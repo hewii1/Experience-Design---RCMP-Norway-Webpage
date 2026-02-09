@@ -25,6 +25,9 @@
         .admin-tab { padding: 8px 20px; border-radius: 12px; font-size: 12px; font-weight: 700; transition: all 0.2s; cursor: pointer; border: none; position: relative; }
         .admin-tab-active { background-color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.05); color: #101828; }
         .hero-gradient { background: linear-gradient(135deg, #004d99 0%, #0058AB 100%); position: relative; }
+        .hero-text-main { color: #FFD700; font-size: 72px; font-weight: 900; font-style: italic; line-height: 0.9; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.2)); }
+        .hero-text-sub { color: #ffffff; font-size: 14px; font-weight: 700; letter-spacing: 0.5em; opacity: 0.6; margin-top: 10px; }
+        .hero-bg-text { position: absolute; font-size: 180px; font-weight: 900; color: rgba(255,255,255,0.05); top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 0; pointer-events: none; }
     </style>
 </head>
 <body>
@@ -44,7 +47,7 @@
             const [systems, setSystems] = useState([]);
             const [insights, setInsights] = useState([]);
             const [activeDecision, setActiveDecision] = useState(null);
-            const [calendarEvents, setCalendarEvents] = useState([]); // fra Supabase
+            const [calendarEvents, setCalendarEvents] = useState([]);
 
             useEffect(() => {
                 const init = async () => {
@@ -966,12 +969,11 @@
             );
         };
 
-        // Kalender som lagrer til Supabase (via onSave)
         const CalendarAdmin = ({ events, onSave }) => {
             const today = new Date();
             const [year, setYear] = useState(today.getFullYear());
-            const [month, setMonth] = useState(today.getMonth()); // 0-11
-            const [selectedDate, setSelectedDate] = useState(null); // 'YYYY-MM-DD'
+            const [month, setMonth] = useState(today.getMonth());
+            const [selectedDate, setSelectedDate] = useState(null);
             const [formType, setFormType] = useState('OFFICE');
             const [formTitle, setFormTitle] = useState('');
             const [formNote, setFormNote] = useState('');
@@ -983,7 +985,7 @@
             const weekdayShort = ['Man','Tir','Ons','Tor','Fre','Lør','Søn'];
 
             const startOfMonth = new Date(year, month, 1);
-            const startWeekday = (startOfMonth.getDay() + 6) % 7; // mandag = 0
+            const startWeekday = (startOfMonth.getDay() + 6) % 7;
             const daysInMonth = new Date(year, month + 1, 0).getDate();
 
             const weeks = [];
@@ -1352,11 +1354,14 @@
                         </div>
                     </div>
 
-                    {/* Høyre side: nytt bakgrunnsbilde */}
-                    <div
-                        className="flex-1 bg-cover bg-center"
-                        style={{ backgroundImage: "url('rcmp-xd-login-bg.png')" }}
-                    ></div>
+                    {/* Høyre side - samme stil som tidligere versjon */}
+                    <div className="flex-1 hero-gradient flex items-center justify-center relative overflow-hidden">
+                        <div className="hero-bg-text">RCMP</div>
+                        <div className="relative z-10 text-center">
+                            <h2 className="hero-text-main">Experience Design</h2>
+                            <p className="hero-text-sub">NORWAY HUB</p>
+                        </div>
+                    </div>
                 </div>
             );
         };
