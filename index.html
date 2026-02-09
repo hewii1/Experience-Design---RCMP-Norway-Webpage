@@ -17,9 +17,10 @@
         .sidebar-item { transition: all 0.2s ease; border-radius: 12px; margin: 0 8px; }
         .sidebar-active { background-color: #f0f4f8; color: #0058AB !important; font-weight: 800; }
         .card-shadow { box-shadow: 0 4px 20px rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.05); }
-        .status-dot { width: 10px; height: 10px; border-radius: 50%; }
+        .unassigned-row { border-left: 5px solid #FFCC00; }
         .btn-animate { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
         .btn-animate:active { transform: scale(0.98); }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; }
         .alert-pulse { animation: pulse 2s infinite; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.7; } 100% { opacity: 1; } }
     </style>
@@ -52,20 +53,45 @@
             const [reports, setReports] = useState([]);
             const [globalAlert, setGlobalAlert] = useState("");
             const [loading, setLoading] = useState(false);
+            const [adminFilter, setAdminFilter] = useState('Alle');
 
             useEffect(() => {
                 supabaseClient.auth.getSession().then(({ data: { session } }) => setUser(session?.user ?? null));
+                const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((_event, session) => setUser(session?.user ?? null));
                 fetchData();
+                return () => subscription.unsubscribe();
             }, []);
 
             const fetchData = async () => {
                 const reqs = await supabaseClient.from('requests').select('*').order('created_at', { ascending: false });
                 const reps = await supabaseClient.from('reports').select('*').order('category', { ascending: true });
-                const alertData = await supabaseClient.from('settings').select('value').eq('key', 'global_alert').single();
+                const alertData = await supabaseClient.from('settings').select('value').eq('key', 'global_alert').maybeSingle();
                 
                 setRequests(reqs.data || []);
                 setReports(reps.data || []);
-                setGlobalAlert(alertData.data?.value || "");
+                setGlobalAlert(alertData?.value || "");
+            };
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setLoading(true);
+                const fd = new FormData(e.target);
+                await supabaseClient.from('requests').insert([{
+                    title: fd.get('title'),
+                    description: fd.get('description'),
+                    type: view === 'error' ? 'Feilrapport' : 'Bestilling',
+                    requested_by: user.email,
+                    status: 'Ny',
+                    assigned_to: 'Ikke tildelt'
+                }]);
+                setLoading(false);
+                setView('dashboard');
+                fetchData();
+            };
+
+            const updateField = async (id, field, val) => {
+                await supabaseClient.from('requests').update({ [field]: val }).eq('id', id);
+                fetchData();
             };
 
             const updateReportStatus = async (id, status) => {
@@ -76,15 +102,20 @@
             const saveGlobalAlert = async (val) => {
                 await supabaseClient.from('settings').upsert({ key: 'global_alert', value: val });
                 setGlobalAlert(val);
-                alert("Melding oppdatert!");
+                alert("Statusmelding oppdatert!");
             };
 
-            const isAdmin = user && ALLOWED_ADMINS.includes(user.email);
+            if (!user) return <div className="p-20 text-center font-bold">Vennligst logg inn via hovedsiden...</div>;
+
+            const isAdmin = ALLOWED_ADMINS.includes(user.email);
+            const userRequests = requests.filter(r => r.requested_by === user.email);
+            const unassigned = requests.filter(r => r.assigned_to === 'Ikke tildelt');
+            const assigned = requests.filter(r => r.assigned_to !== 'Ikke tildelt' && (adminFilter === 'Alle' ? true : r.assigned_to === adminFilter));
 
             return (
                 <div className="flex min-h-screen">
                     {/* SIDEBAR */}
-                    <aside className="w-72 bg-white border-r border-gray-100 flex flex-col fixed h-full z-20">
+                    <aside className="w-72 bg-white border-r border-gray-100 flex flex-col fixed h-full z-20 shadow-sm">
                         <div className="p-10 mb-4"><Logo /></div>
                         <nav className="flex-1 space-y-1">
                             <button onClick={() => setView('dashboard')} className={`w-[calc(100%-16px)] flex items-center gap-3 px-6 py-4 text-sm font-bold sidebar-item ${view === 'dashboard' ? 'sidebar-active' : 'text-gray-400 hover:text-gray-600'}`}>📊 Dine saker</button>
@@ -98,7 +129,7 @@
                             )}
                         </nav>
                         <div className="p-8 border-t border-gray-50 mt-auto text-center">
-                            <button onClick={() => supabaseClient.auth.signOut()} className="text-[9px] font-black text-red-500 uppercase tracking-widest">Logg ut</button>
+                            <button onClick={() => supabaseClient.auth.signOut()} className="text-[9px] font-black text-red-500 uppercase tracking-widest hover:underline">Logg ut</button>
                         </div>
                     </aside>
 
@@ -106,13 +137,39 @@
                     <main className="flex-1 ml-72 p-16">
                         <div className="max-w-4xl mx-auto">
                             
-                            {/* VISNING: SYSTEMSTATUS */}
+                            {/* DASHBOARD: DINE SAKER */}
+                            {view === 'dashboard' && (
+                                <div>
+                                    <h2 className="text-4xl font-black tracking-tighter text-gray-900 mb-10">Dine saker</h2>
+                                    <div className="space-y-4">
+                                        {userRequests.length === 0 ? (
+                                            <div className="bg-white p-16 rounded-[2.5rem] card-shadow border border-gray-100 text-center">
+                                                <div className="text-3xl mb-4 opacity-30">☕</div>
+                                                <h3 className="text-xl font-bold text-gray-900 mb-2">Ingen aktive saker</h3>
+                                                <button onClick={() => setView('new')} className="ikea-blue text-white px-8 py-3 rounded-xl font-black uppercase text-[10px] btn-animate mt-4">Ny forespørsel</button>
+                                            </div>
+                                        ) : (
+                                            userRequests.map(req => (
+                                                <div key={req.id} className="p-8 rounded-3xl card-shadow bg-white flex justify-between items-center border border-gray-50">
+                                                    <div>
+                                                        <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${req.type === 'Feilrapport' ? 'bg-red-50 text-red-500' : 'bg-blue-50 text-blue-500'}`}>{req.type}</span>
+                                                        <h3 className="text-xl font-bold mt-2">{req.title}</h3>
+                                                        <p className="text-gray-400 text-[10px]">Ansvarlig: <span className="text-gray-900 font-bold">{req.assigned_to}</span></p>
+                                                    </div>
+                                                    <span className="bg-gray-900 text-white px-5 py-2 rounded-lg text-[9px] font-black uppercase">{req.status}</span>
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* SYSTEMSTATUS */}
                             {view === 'systems' && (
                                 <div className="space-y-10">
                                     <h2 className="text-4xl font-black tracking-tighter text-gray-900">Systemstatus</h2>
-                                    
                                     {globalAlert && (
-                                        <div className="bg-yellow-50 border border-yellow-100 p-6 rounded-[2rem] flex items-center gap-5 alert-pulse shadow-sm">
+                                        <div className="bg-yellow-50 border border-yellow-100 p-6 rounded-[2rem] flex items-center gap-5 alert-pulse">
                                             <span className="text-2xl">📢</span>
                                             <div>
                                                 <p className="text-[10px] font-black uppercase tracking-widest text-yellow-600">Viktig melding</p>
@@ -120,7 +177,6 @@
                                             </div>
                                         </div>
                                     )}
-
                                     {[...new Set(reports.map(r => r.category))].map(cat => (
                                         <div key={cat} className="space-y-4">
                                             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 ml-2">{cat}</h3>
@@ -129,12 +185,9 @@
                                                     <div key={report.id} className="bg-white p-6 rounded-3xl card-shadow flex items-center justify-between border border-gray-50">
                                                         <div className="flex items-center gap-4">
                                                             <div className={`status-dot ${report.status === 'grønn' ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]' : report.status === 'gul' ? 'bg-yellow-500' : 'bg-red-500'}`}></div>
-                                                            <div>
-                                                                <h4 className="font-bold text-gray-900 text-sm">{report.name}</h4>
-                                                                <p className="text-[10px] text-gray-400 font-medium italic">Oppdatert: {report.last_update}</p>
-                                                            </div>
+                                                            <div><h4 className="font-bold text-gray-900 text-sm">{report.name}</h4><p className="text-[10px] text-gray-400">Oppdatert: {report.last_update}</p></div>
                                                         </div>
-                                                        {report.link && <a href={report.link} target="_blank" className="text-[9px] font-black uppercase tracking-widest text-blue-600 opacity-50 hover:opacity-100 transition-opacity">Åpne</a>}
+                                                        {report.link && <a href={report.link} target="_blank" className="text-[9px] font-black uppercase text-blue-600">Åpne</a>}
                                                     </div>
                                                 ))}
                                             </div>
@@ -143,7 +196,29 @@
                                 </div>
                             )}
 
-                            {/* VISNING: ADMIN PANEL */}
+                            {/* SKJEMAER FOR NY SAK / FEIL */}
+                            {(view === 'new' || view === 'error') && (
+                                <div>
+                                    <h2 className="text-4xl font-black tracking-tighter text-gray-900 mb-10">
+                                        {view === 'new' ? 'Ny forespørsel' : 'Noe som ikke fungerer?'}
+                                    </h2>
+                                    <form onSubmit={handleSubmit} className="bg-white p-12 rounded-[2.5rem] card-shadow max-w-xl space-y-8">
+                                        <div className="space-y-2">
+                                            <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Tittel</label>
+                                            <input name="title" placeholder="Hva gjelder det?" className="w-full p-4 bg-gray-50 rounded-xl outline-none font-bold border-none" required />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Beskrivelse</label>
+                                            <textarea name="description" placeholder="Utdyp her..." className="w-full p-4 bg-gray-50 rounded-xl h-40 outline-none font-medium text-sm border-none" required></textarea>
+                                        </div>
+                                        <button disabled={loading} className={`w-full py-4 rounded-xl font-black uppercase text-[10px] btn-animate shadow-xl ${view === 'error' ? 'bg-red-600 text-white' : 'ikea-blue text-white'}`}>
+                                            {loading ? 'Sender...' : 'Send forespørsel ➜'}
+                                        </button>
+                                    </form>
+                                </div>
+                            )}
+
+                            {/* ADMIN PANEL */}
                             {view === 'admin' && (
                                 <div>
                                     <div className="flex gap-4 mb-12">
@@ -151,45 +226,58 @@
                                         <button onClick={() => setAdminSubView('reports')} className={`px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${adminSubView === 'reports' ? 'ikea-blue text-white shadow-lg shadow-blue-900/20' : 'bg-white text-gray-400 border border-gray-100'}`}>Systemkontroll</button>
                                     </div>
 
-                                    {adminSubView === 'reports' ? (
-                                        <div className="space-y-10">
-                                            {/* GLOBAL ALERT SETTING */}
-                                            <div className="bg-white p-10 rounded-[2.5rem] card-shadow border border-gray-50">
-                                                <h3 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-6">Aktiv driftsmelding</h3>
-                                                <div className="flex gap-4">
-                                                    <input 
-                                                        id="alertInput"
-                                                        defaultValue={globalAlert}
-                                                        placeholder="Skriv inn melding til alle brukere..."
-                                                        className="flex-1 bg-gray-50 border-none rounded-2xl px-6 py-4 font-medium outline-none text-sm"
-                                                    />
-                                                    <button 
-                                                        onClick={() => saveGlobalAlert(document.getElementById('alertInput').value)}
-                                                        className="bg-gray-900 text-white px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest btn-animate"
-                                                    >Lagre</button>
-                                                </div>
-                                                <p className="mt-4 text-[10px] text-gray-400 italic">Tøm feltet og lagre for å fjerne meldingen.</p>
+                                    {adminSubView === 'tasks' ? (
+                                        <div className="space-y-8">
+                                            <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+                                                <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-2">Filtrer på person:</span>
+                                                <select value={adminFilter} onChange={(e) => setAdminFilter(e.target.value)} className="bg-gray-50 border-none rounded-lg px-4 py-2 text-xs font-bold outline-none">
+                                                    <option value="Alle">Alle tildelte</option>
+                                                    {TEAM.filter(t => t !== 'Ikke tildelt').map(t => <option key={t} value={t}>{t}</option>)}
+                                                </select>
                                             </div>
-
-                                            {/* SYSTEM STATUS CONTROL */}
-                                            <div className="bg-white rounded-[2.5rem] card-shadow overflow-hidden border border-gray-50">
+                                            
+                                            <section className="space-y-4">
+                                                <h3 className="text-[10px] font-black uppercase text-yellow-600 tracking-widest">Nye / Utildelte ({unassigned.length})</h3>
+                                                <div className="bg-white rounded-[2rem] card-shadow overflow-hidden">
+                                                    <table className="w-full text-left">
+                                                        <tbody className="divide-y divide-gray-50 text-sm">
+                                                            {unassigned.map(req => (
+                                                                <tr key={req.id} className="unassigned-row">
+                                                                    <td className="p-6">
+                                                                        <p className="font-bold">{req.title}</p>
+                                                                        <p className="text-[10px] text-gray-400">{req.requested_by}</p>
+                                                                    </td>
+                                                                    <td className="p-6">
+                                                                        <select value={req.assigned_to} onChange={(e) => updateField(req.id, 'assigned_to', e.target.value)} className="bg-yellow-50 text-yellow-700 rounded-lg px-3 py-1.5 text-[10px] font-black uppercase border-none">
+                                                                            {TEAM.map(t => <option key={t}>{t}</option>)}
+                                                                        </select>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </section>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-10">
+                                            <div className="bg-white p-10 rounded-[2.5rem] card-shadow border border-gray-50">
+                                                <h3 className="text-xs font-black uppercase text-gray-400 mb-6 tracking-widest">Aktiv driftsmelding</h3>
+                                                <div className="flex gap-4">
+                                                    <input id="alertInput" defaultValue={globalAlert} placeholder="Melding til alle..." className="flex-1 bg-gray-50 rounded-2xl px-6 py-4 text-sm font-medium outline-none" />
+                                                    <button onClick={() => saveGlobalAlert(document.getElementById('alertInput').value)} className="bg-gray-900 text-white px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest btn-animate">Lagre</button>
+                                                </div>
+                                            </div>
+                                            <div className="bg-white rounded-[2.5rem] card-shadow overflow-hidden">
                                                 <table className="w-full text-left">
-                                                    <thead className="bg-gray-50 text-[9px] font-black uppercase text-gray-400 tracking-widest">
-                                                        <tr><th className="p-6">System/Rapport</th><th className="p-6 text-right">Statuskontroll</th></tr>
-                                                    </thead>
                                                     <tbody className="divide-y divide-gray-50">
                                                         {reports.map(r => (
                                                             <tr key={r.id}>
-                                                                <td className="p-6">
-                                                                    <p className="font-bold text-gray-900 text-sm">{r.name}</p>
-                                                                    <p className="text-[10px] text-gray-400">{r.category}</p>
-                                                                </td>
-                                                                <td className="p-6">
-                                                                    <div className="flex justify-end gap-3">
-                                                                        <button onClick={() => updateReportStatus(r.id, 'grønn')} className={`w-8 h-8 rounded-xl bg-green-500 transition-all ${r.status === 'grønn' ? 'ring-4 ring-green-100 scale-110 shadow-lg' : 'opacity-20 hover:opacity-40'}`}></button>
-                                                                        <button onClick={() => updateReportStatus(r.id, 'gul')} className={`w-8 h-8 rounded-xl bg-yellow-500 transition-all ${r.status === 'gul' ? 'ring-4 ring-yellow-100 scale-110 shadow-lg' : 'opacity-20 hover:opacity-40'}`}></button>
-                                                                        <button onClick={() => updateReportStatus(r.id, 'rød')} className={`w-8 h-8 rounded-xl bg-red-500 transition-all ${r.status === 'rød' ? 'ring-4 ring-red-100 scale-110 shadow-lg' : 'opacity-20 hover:opacity-40'}`}></button>
-                                                                    </div>
+                                                                <td className="p-6"><p className="font-bold text-sm">{r.name}</p><p className="text-[10px] text-gray-400">{r.category}</p></td>
+                                                                <td className="p-6 flex justify-end gap-3">
+                                                                    {['grønn', 'gul', 'rød'].map(s => (
+                                                                        <button key={s} onClick={() => updateReportStatus(r.id, s)} className={`w-8 h-8 rounded-xl bg-${s === 'grønn' ? 'green' : s === 'gul' ? 'yellow' : 'red'}-500 transition-all ${r.status === s ? 'ring-4 ring-offset-1 scale-110 shadow-lg' : 'opacity-20 hover:opacity-40'}`}></button>
+                                                                    ))}
                                                                 </td>
                                                             </tr>
                                                         ))}
@@ -197,16 +285,9 @@
                                                 </table>
                                             </div>
                                         </div>
-                                    ) : (
-                                        <div className="text-gray-400 font-bold uppercase text-[10px] tracking-widest text-center p-20 bg-white rounded-[2.5rem] card-shadow">
-                                            Her ligger saksbehandlingen (som i forrige versjon)
-                                        </div>
                                     )}
                                 </div>
                             )}
-
-                            {/* DASHBOARD OG ANDRE VISNINGER ... */}
-                            {view === 'dashboard' && <div className="p-20 text-center font-bold text-gray-300">Dine saker vises her...</div>}
                         </div>
                     </main>
                 </div>
