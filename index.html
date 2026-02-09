@@ -15,11 +15,6 @@
         .sidebar-item { transition: all 0.2s ease; border-radius: 12px; margin: 2px 12px; }
         .sidebar-active { background-color: #f5f8ff; color: #0058AB !important; font-weight: 700; box-shadow: inset 4px 0 0 -1px #0058AB; }
         .glass-card { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid #f0f2f5; }
-        .modal-overlay { background: rgba(16, 24, 40, 0.4); backdrop-filter: blur(4px); }
-        .zoom-container { overflow: hidden; border-radius: 3.5rem 3.5rem 0 0; }
-        .zoom-image { transition: transform 0.6s ease; width: 100%; height: 100%; object-fit: cover; }
-        .group:hover .zoom-image { transform: scale(1.05); }
-        .image-overlay { background: linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,1) 95%); position: absolute; inset: 0; }
     </style>
 </head>
 <body>
@@ -37,6 +32,7 @@
 
         const App = () => {
             const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(true);
             const [view, setView] = useState('dashboard');
             const [adminSubView, setAdminSubView] = useState('tasks');
             const [requests, setRequests] = useState([]);
@@ -45,106 +41,90 @@
             const [activeDecision, setActiveDecision] = useState(null);
 
             useEffect(() => {
-                supabaseClient.auth.getSession().then(({ data: { session } }) => setUser(session?.user ?? null));
-                fetchData();
+                const checkSession = async () => {
+                    const { data: { session } } = await supabaseClient.auth.getSession();
+                    setUser(session?.user ?? null);
+                    if (session?.user) {
+                        await fetchData();
+                    }
+                    setLoading(false);
+                };
+                checkSession();
+
+                const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((_event, session) => {
+                    setUser(session?.user ?? null);
+                    if (session?.user) fetchData();
+                    setLoading(false);
+                });
+
+                return () => subscription.unsubscribe();
             }, []);
 
             const fetchData = async () => {
-                const { data: reqs } = await supabaseClient.from('requests').select('*').order('created_at', { ascending: false });
-                const { data: ins } = await supabaseClient.from('insights').select('*').order('id', { ascending: true });
-                const { data: sys } = await supabaseClient.from('system_status').select('*').order('id', { ascending: true });
-                setRequests(reqs || []);
-                setInsights(ins || []);
-                setSystems(sys || []);
+                try {
+                    const [reqRes, insRes, sysRes] = await Promise.all([
+                        supabaseClient.from('requests').select('*').order('created_at', { ascending: false }),
+                        supabaseClient.from('insights').select('*').order('id', { ascending: true }),
+                        supabaseClient.from('system_status').select('*').order('id', { ascending: true })
+                    ]);
+
+                    setRequests(reqRes.data || []);
+                    setInsights(insRes.data || []);
+                    setSystems(sysRes.data || []);
+                } catch (err) {
+                    console.error("Data-henting feilet:", err);
+                }
             };
 
             const handleLogout = async () => {
                 await supabaseClient.auth.signOut();
-                window.location.reload(); // Dette sikrer at brukeren sendes ut
-            };
-
-            const finalizeDecision = async (reason) => {
-                if (!activeDecision) return;
-                await supabaseClient.from('requests').update({ 
-                    status: activeDecision.status,
-                    admin_reason: reason,
-                    assigned_to: 'System'
-                }).eq('id', activeDecision.id);
-                setActiveDecision(null);
-                fetchData();
-            };
-
-            const handleGeneralSubmit = async (e, type) => {
-                e.preventDefault();
-                const formData = new FormData(e.target);
-                await supabaseClient.from('requests').insert([{
-                    title: formData.get('title'),
-                    description: formData.get('description'),
-                    type: type,
-                    requested_by: user.email,
-                    status: 'Open',
-                    assigned_to: 'Ikke tildelt'
-                }]);
-                setView('dashboard');
-                fetchData();
-            };
-
-            const handleAccessSubmit = async (e) => {
-                e.preventDefault();
-                const formData = new FormData(e.target);
-                const report = formData.get('report');
-                const title = `Tilgang: ${report === 'Annet' ? formData.get('other') : report}`;
-                await supabaseClient.from('requests').insert([{
-                    title: title,
-                    description: formData.get('reason'),
-                    type: 'TILGANG',
-                    requested_by: user.email,
-                    status: 'Open',
-                    assigned_to: 'Ikke tildelt'
-                }]);
-                setView('dashboard');
-                fetchData();
+                window.location.reload();
             };
 
             const isAdmin = user && ['henrik.h.wiik@gmail.com', 'marthe.epost@ingka.ikea.com', 'karolina.epost@ingka.ikea.com'].includes(user.email);
-            if (!user) return <div className="p-20 text-center font-bold text-gray-300 italic tracking-widest animate-pulse">RCMP...</div>;
+
+            if (loading) return (
+                <div className="h-screen w-full flex items-center justify-center bg-[#fcfcfd]">
+                    <div className="text-center">
+                        <h1 className="text-4xl font-black italic text-gray-200 animate-pulse tracking-widest">RCMP...</h1>
+                        <p className="text-[10px] font-bold text-gray-400 mt-4 uppercase tracking-[0.3em]">Henter data</p>
+                    </div>
+                </div>
+            );
+
+            if (!user) return (
+                <div className="h-screen w-full flex items-center justify-center bg-gray-50">
+                    <div className="glass-card p-12 rounded-[3rem] text-center shadow-xl">
+                        <h1 className="text-5xl font-black italic mb-8">RCMP</h1>
+                        <button 
+                            onClick={() => supabaseClient.auth.signInWithOAuth({ provider: 'google' })}
+                            className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-700 transition-all"
+                        >
+                            Logg inn med Google ➜
+                        </button>
+                    </div>
+                </div>
+            );
 
             return (
                 <div className="flex min-h-screen">
-                    {/* MODAL */}
-                    {activeDecision && (
-                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 modal-overlay">
-                            <div className="glass-card w-full max-w-md p-10 rounded-[2.5rem] shadow-2xl animate-in zoom-in-95">
-                                <h3 className="text-2xl font-black mb-2">{activeDecision.status === 'Approved' ? '✅ Godkjenn' : '❌ Avslå'}</h3>
-                                <textarea id="modalReason" className="w-full p-5 bg-gray-50 rounded-2xl h-32 outline-none border-none my-6" placeholder="Skriv din begrunnelse her..."></textarea>
-                                <div className="flex gap-3">
-                                    <button onClick={() => setActiveDecision(null)} className="flex-1 font-bold text-gray-400">Avbryt</button>
-                                    <button onClick={() => finalizeDecision(document.getElementById('modalReason').value)} className={`flex-[2] py-4 rounded-2xl text-white font-black uppercase ${activeDecision.status === 'Approved' ? 'bg-green-500' : 'bg-red-500'}`}>Bekreft</button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
                     {/* SIDEBAR */}
                     <aside className="w-72 bg-white border-r border-gray-100 flex flex-col fixed h-full z-20 pt-12">
-                        <div className="px-10 mb-6">
-                            <h1 className="text-4xl font-black italic text-gray-900 leading-none">RCMP</h1>
-                            <p className="text-[9px] font-black uppercase tracking-[0.3em] text-gray-400 mt-1.5">Experience Design</p>
+                        <div className="px-10 mb-6 text-gray-900">
+                            <h1 className="text-4xl font-black italic leading-none">RCMP</h1>
+                            <p className="text-[9px] font-black uppercase tracking-[0.3em] text-gray-400 mt-1.5">Operations Hub</p>
                         </div>
 
-                        {/* SEKSJON: MIN SIDE */}
                         <div className="mb-6">
                              <button onClick={() => setView('dashboard')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-4 text-sm font-bold sidebar-item ${view === 'dashboard' ? 'sidebar-active' : 'text-gray-900 hover:bg-gray-50'}`}>👤 Min side</button>
                         </div>
                         
                         <div className="mx-8 border-t border-gray-100 mb-6"></div>
 
-                        <nav className="flex-1 overflow-y-auto">
+                        <nav className="flex-1">
                             <button onClick={() => setView('systems')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'systems' ? 'sidebar-active' : 'text-gray-500'}`}>🛰️ Live Ops</button>
                             <button onClick={() => setView('insights')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'insights' ? 'sidebar-active' : 'text-gray-500'}`}>💡 Insight Engine</button>
                             <button onClick={() => setView('access')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'access' ? 'sidebar-active' : 'text-gray-500'}`}>🔑 Be om tilgang</button>
-                            <button onClick={() => setView('new')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'new' ? 'sidebar-active' : 'text-gray-500'}`}>✨ Ny forespørsel</button>
-                            <button onClick={() => setView('error')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'error' ? 'sidebar-active' : 'text-gray-500'}`}>⚠️ Rapporter feil</button>
                             
                             {isAdmin && (
                                 <div className="mt-8 pt-8 border-t border-gray-100">
@@ -154,197 +134,49 @@
                         </nav>
                         
                         <div className="p-8 border-t border-gray-50">
-                            <button onClick={handleLogout} className="text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-red-500 transition-colors w-full text-center">Logg ut ➜</button>
+                            <button onClick={handleLogout} className="text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-red-500 w-full text-center">Logg ut ➜</button>
                         </div>
                     </aside>
 
-                    {/* MAIN */}
+                    {/* MAIN CONTENT AREA */}
                     <main className="flex-1 ml-72 p-16">
                         <div className="max-w-5xl mx-auto">
-                            
-                            {/* VIEW: MIN SIDE */}
                             {view === 'dashboard' && (
-                                <div className="space-y-8 animate-in fade-in">
-                                    <h2 className="text-4xl font-extrabold">Min side</h2>
+                                <div className="animate-in fade-in">
+                                    <h2 className="text-4xl font-extrabold mb-8">Velkommen, {user.email.split('@')[0]}</h2>
                                     <div className="grid gap-4">
-                                        {requests.filter(r => r.requested_by === user.email).map(req => (
-                                            <div key={req.id} className="glass-card p-8 rounded-[2rem] flex justify-between items-center">
-                                                <div>
-                                                    <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest mb-2 inline-block ${req.status === 'Approved' ? 'bg-green-50 text-green-600' : req.status === 'Rejected' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>{req.status}</span>
-                                                    <h3 className="text-xl font-black">{req.title}</h3>
-                                                    {req.admin_reason && <p className="text-sm text-blue-600 font-bold mt-2 italic">"{req.admin_reason}"</p>}
-                                                </div>
-                                                <div className="text-right text-xs font-bold text-gray-400">ID: #{req.id}</div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* VIEW: INSIGHT ENGINE */}
-                            {view === 'insights' && (
-                                <div className="space-y-12 animate-in fade-in">
-                                    <h2 className="text-5xl font-extrabold">Insight Engine</h2>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                                        {insights.filter(i => i.is_active).map(item => (
-                                            <div key={item.id} className="glass-card rounded-[3.5rem] flex flex-col justify-between min-h-[450px] group relative">
-                                                {item.image_url && (
-                                                    <div className="absolute top-0 left-0 w-full h-64 zoom-container">
-                                                        <img src={item.image_url} className="zoom-image" />
-                                                        <div className="image-overlay"></div>
+                                        {requests.filter(r => r.requested_by === user.email).length === 0 ? (
+                                            <p className="text-gray-400 italic">Du har ingen aktive saker ennå.</p>
+                                        ) : (
+                                            requests.filter(r => r.requested_by === user.email).map(req => (
+                                                <div key={req.id} className="glass-card p-8 rounded-[2rem] flex justify-between items-center">
+                                                    <div>
+                                                        <h3 className="text-xl font-black">{req.title}</h3>
+                                                        <p className="text-sm text-gray-400 mt-1">Status: {req.status}</p>
                                                     </div>
-                                                )}
-                                                <div className="p-10 relative z-10 pt-48">
-                                                    <span className="text-[10px] font-black uppercase tracking-widest text-blue-600/60">{item.tag}</span>
-                                                    <h3 className="text-2xl font-black mt-4 mb-3 leading-tight">{item.title}</h3>
-                                                    <p className="text-gray-500 font-medium text-sm line-clamp-3">{item.description}</p>
                                                 </div>
-                                                <div className="p-10 pt-0 relative z-10">
-                                                    <a href={item.link_url || "#"} target="_blank"><button style={{backgroundColor: item.color_hex}} className="w-full text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg hover:brightness-110">Se mer ➜</button></a>
-                                                </div>
-                                            </div>
-                                        ))}
+                                            ))
+                                        )}
                                     </div>
                                 </div>
                             )}
 
-                            {/* VIEW: NEW / ERROR */}
-                            {(view === 'new' || view === 'error') && (
-                                <div className="max-w-xl animate-in fade-in">
-                                    <h2 className="text-4xl font-extrabold mb-8">{view === 'new' ? 'Ny forespørsel' : 'Rapporter feil'}</h2>
-                                    <form onSubmit={(e) => handleGeneralSubmit(e, view === 'new' ? 'INNSINKT' : 'FEIL')} className="glass-card p-10 rounded-[3rem] space-y-6">
-                                        <input name="title" required placeholder="Tittel" className="w-full p-5 bg-gray-50 rounded-2xl font-bold border-none outline-none" />
-                                        <textarea name="description" required className="w-full p-5 bg-gray-50 rounded-2xl h-40 border-none outline-none" placeholder="Beskriv behovet eller feilen..."></textarea>
-                                        <button className="w-full bg-gray-900 text-white py-5 rounded-2xl font-black uppercase tracking-widest">Send inn</button>
-                                    </form>
-                                </div>
-                            )}
-
-                            {view === 'access' && (
-                                <div className="max-w-xl animate-in fade-in">
-                                    <h2 className="text-4xl font-extrabold mb-8">Be om tilgang</h2>
-                                    <form onSubmit={handleAccessSubmit} className="glass-card p-10 rounded-[3rem] space-y-6">
-                                        <select name="report" className="w-full p-5 bg-gray-50 rounded-2xl font-bold border-none outline-none" onChange={(e) => setAdminSubView(e.target.value)}>
-                                            {REPORTS.map(r => <option key={r} value={r}>{r}</option>)}
-                                        </select>
-                                        {adminSubView === 'Annet' && <input name="other" required placeholder="Hvilken rapport?" className="w-full p-5 bg-gray-50 rounded-2xl font-bold border-none outline-none" />}
-                                        <textarea name="reason" required className="w-full p-5 bg-gray-50 rounded-2xl h-32 border-none outline-none" placeholder="Hvorfor trenger du tilgang?"></textarea>
-                                        <button className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest">Send forespørsel ➜</button>
-                                    </form>
-                                </div>
-                            )}
-
-                            {/* VIEW: LIVE OPS */}
                             {view === 'systems' && (
-                                <div className="space-y-8 animate-in fade-in">
+                                <div className="space-y-8">
                                     <h2 className="text-4xl font-extrabold">Live Operations</h2>
-                                    <div className="grid gap-6">
-                                        {systems.map(s => (
-                                            <div key={s.id} className="glass-card p-8 rounded-[2.5rem] flex flex-col gap-4">
-                                                <div className="flex justify-between items-start">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className={`w-3 h-3 rounded-full ${s.status === 'online' ? 'bg-green-500' : 'bg-amber-500 animate-pulse'}`}></div>
-                                                        <h4 className="font-black text-2xl">{s.system_name}</h4>
-                                                    </div>
-                                                    <p className="text-[10px] font-black text-gray-400 uppercase">Sist oppdatert {new Date(s.updated_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</p>
-                                                </div>
-                                                {s.status_message && <p className="text-sm font-medium text-gray-600 bg-gray-50 p-4 rounded-2xl italic border border-gray-100">"{s.status_message}"</p>}
+                                    {systems.map(s => (
+                                        <div key={s.id} className="glass-card p-8 rounded-[2.5rem]">
+                                            <div className="flex items-center gap-4">
+                                                <div className={`w-3 h-3 rounded-full ${s.status === 'online' ? 'bg-green-500' : 'bg-amber-500'}`}></div>
+                                                <h4 className="font-black text-2xl">{s.system_name || 'Ukjent System'}</h4>
                                             </div>
-                                        ))}
-                                    </div>
+                                        </div>
+                                    ))}
                                 </div>
                             )}
-
-                            {/* VIEW: ADMIN */}
-                            {view === 'admin' && (
-                                <div className="space-y-10 animate-in fade-in">
-                                    <div className="flex flex-wrap gap-4 p-1.5 bg-gray-100 rounded-2xl w-fit font-bold text-[10px] uppercase tracking-widest">
-                                        <button onClick={() => setAdminSubView('tasks')} className={`px-6 py-2.5 rounded-xl ${adminSubView === 'tasks' ? 'bg-white shadow-sm' : 'text-gray-500'}`}>Oppgaver</button>
-                                        <button onClick={() => setAdminSubView('requests')} className={`px-6 py-2.5 rounded-xl ${adminSubView === 'requests' ? 'bg-white shadow-sm' : 'text-gray-500'}`}>Tilgang</button>
-                                        <button onClick={() => setAdminSubView('log')} className={`px-6 py-2.5 rounded-xl ${adminSubView === 'log' ? 'bg-white shadow-sm' : 'text-gray-500'}`}>Logg</button>
-                                        <button onClick={() => setAdminSubView('insights')} className={`px-6 py-2.5 rounded-xl ${adminSubView === 'insights' ? 'bg-white shadow-sm' : 'text-gray-500'}`}>Insights</button>
-                                        <button onClick={() => setAdminSubView('live')} className={`px-6 py-2.5 rounded-xl ${adminSubView === 'live' ? 'bg-white shadow-sm' : 'text-gray-500'}`}>Live Ops</button>
-                                    </div>
-
-                                    {adminSubView === 'tasks' && (
-                                        <div className="space-y-4">
-                                            {requests.filter(r => r.type !== 'TILGANG' && r.status === 'Open').map(req => (
-                                                <div key={req.id} className="glass-card p-6 rounded-[2rem] flex justify-between items-center border-l-4 border-l-red-400">
-                                                    <div><h5 className="font-black">{req.title}</h5><p className="text-xs text-gray-500">{req.requested_by}</p></div>
-                                                    <select value={req.assigned_to} onChange={(e) => supabaseClient.from('requests').update({assigned_to: e.target.value}).eq('id', req.id).then(fetchData)} className="bg-gray-50 p-2 rounded-xl text-[10px] font-black uppercase">
-                                                        {TEAM.map(t => <option key={t}>{t}</option>)}
-                                                    </select>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-
-                                    {adminSubView === 'live' && (
-                                        <div className="grid gap-6">
-                                            {systems.map(s => (
-                                                <div key={s.id} className="glass-card p-10 rounded-[3rem] space-y-6">
-                                                    <div className="flex flex-col gap-4">
-                                                        <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Systemnavn</label>
-                                                        <input defaultValue={s.system_name} onBlur={(e) => supabaseClient.from('system_status').update({system_name: e.target.value}).eq('id', s.id).then(fetchData)} className="w-full p-4 bg-gray-50 rounded-2xl font-bold border-none outline-none" />
-                                                    </div>
-                                                    <div className="flex justify-between items-center">
-                                                        <h4 className="font-black text-xs uppercase tracking-widest text-gray-400 ml-2">Status</h4>
-                                                        <select value={s.status} onChange={(e) => supabaseClient.from('system_status').update({status: e.target.value}).eq('id', s.id).then(fetchData)} className="bg-gray-50 p-3 rounded-xl text-xs font-bold border-none outline-none">
-                                                            <option value="online">Online</option>
-                                                            <option value="degraded">Degraded</option>
-                                                            <option value="offline">Offline</option>
-                                                        </select>
-                                                    </div>
-                                                    <div className="flex flex-col gap-2">
-                                                        <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Melding</label>
-                                                        <input defaultValue={s.status_message} onBlur={(e) => supabaseClient.from('system_status').update({status_message: e.target.value}).eq('id', s.id).then(fetchData)} className="w-full p-4 bg-gray-50 rounded-2xl italic border-none outline-none" placeholder="Legg til melding..." />
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-
-                                    {/* (Resten av Admin-visninger som Logg, Insights osv forblir som før) */}
-                                    {adminSubView === 'log' && (
-                                        <div className="glass-card rounded-[2.5rem] overflow-hidden">
-                                            <table className="w-full text-left"><thead className="bg-gray-50 font-black text-[10px] uppercase text-gray-400"><tr><th className="p-6">Rapport</th><th className="p-6">Status</th><th className="p-6">Begrunnelse</th></tr></thead><tbody className="divide-y divide-gray-50">{requests.filter(r => r.type === 'TILGANG' && r.status !== 'Open').map(req => (<tr key={req.id}><td className="p-6 font-bold">{req.title}</td><td className="p-6 uppercase text-[9px] font-black">{req.status}</td><td className="p-6 italic text-gray-400 text-xs">{req.admin_reason}</td></tr>))}</tbody></table>
-                                        </div>
-                                    )}
-
-                                    {adminSubView === 'requests' && (
-                                        <div className="grid gap-6">
-                                            {requests.filter(r => r.type === 'TILGANG' && r.status === 'Open').map(req => (
-                                                <div key={req.id} className="glass-card p-8 rounded-[2.5rem] flex flex-col gap-6">
-                                                    <div className="flex justify-between items-start">
-                                                        <div><h5 className="font-black text-2xl">{req.title}</h5><p className="text-xs font-bold text-gray-400 uppercase">{req.requested_by}</p><p className="mt-4 bg-gray-50 p-4 rounded-xl italic text-sm">"{req.description}"</p></div>
-                                                        <div className="flex gap-2">
-                                                            <button onClick={() => setActiveDecision({id: req.id, status: 'Approved'})} className="bg-green-500 text-white px-6 py-2 rounded-xl font-black uppercase text-[10px]">Godkjenn</button>
-                                                            <button onClick={() => setActiveDecision({id: req.id, status: 'Rejected'})} className="bg-red-500 text-white px-6 py-2 rounded-xl font-black uppercase text-[10px]">Avslå</button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-
-                                    {adminSubView === 'insights' && (
-                                        <div className="grid gap-8">
-                                            {insights.map(item => (
-                                                <div key={item.id} className="glass-card p-10 rounded-[3rem] space-y-6">
-                                                    <div className="flex justify-between border-b pb-4"><h4 className="font-black text-lg">Modul #{item.id}</h4><label className="flex items-center gap-2"><span className="text-[10px] font-black uppercase text-gray-400">Aktiv:</span><input type="checkbox" checked={item.is_active} onChange={(e) => supabaseClient.from('insights').update({is_active: e.target.checked}).eq('id', item.id).then(fetchData)} /></label></div>
-                                                    <div className="grid grid-cols-2 gap-4">
-                                                        <input defaultValue={item.title} onBlur={(e) => supabaseClient.from('insights').update({title: e.target.value}).eq('id', item.id).then(fetchData)} className="p-4 bg-gray-50 rounded-xl font-bold" placeholder="Tittel" />
-                                                        <input defaultValue={item.tag} onBlur={(e) => supabaseClient.from('insights').update({tag: e.target.value}).eq('id', item.id).then(fetchData)} className="p-4 bg-gray-50 rounded-xl" placeholder="Tag" />
-                                                        <textarea defaultValue={item.description} onBlur={(e) => supabaseClient.from('insights').update({description: e.target.value}).eq('id', item.id).then(fetchData)} className="col-span-2 p-4 bg-gray-50 rounded-xl h-24" placeholder="Beskrivelse" />
-                                                        <input defaultValue={item.image_url} onBlur={(e) => supabaseClient.from('insights').update({image_url: e.target.value}).eq('id', item.id).then(fetchData)} className="p-4 bg-gray-50 rounded-xl text-xs" placeholder="Bilde URL" />
-                                                        <input defaultValue={item.link_url} onBlur={(e) => supabaseClient.from('insights').update({link_url: e.target.value}).eq('id', item.id).then(fetchData)} className="p-4 bg-gray-50 rounded-xl text-xs" placeholder="Link URL" />
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
+                            
+                            {/* Flere views her... */}
+                            <p className="text-xs text-gray-300 mt-20">Innlogget som {user.email}</p>
                         </div>
                     </main>
                 </div>
