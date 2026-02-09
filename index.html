@@ -18,7 +18,7 @@
         .glass-card { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(235, 238, 242, 1); box-shadow: 0 4px 12px -2px rgba(16, 24, 40, 0.04); overflow: hidden; }
         .btn-animate { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
         .btn-animate:active { transform: scale(0.95); }
-        .image-overlay { background: linear-gradient(to bottom, rgba(255,255,255,0.7) 0%, rgba(255,255,255,1) 80%); }
+        .image-overlay { background: linear-gradient(to bottom, rgba(255,255,255,0.4) 0%, rgba(255,255,255,1) 90%); }
     </style>
 </head>
 <body>
@@ -64,14 +64,20 @@
                 fetchData();
             };
 
+            const updateRequest = async (id, field, val) => {
+                await supabaseClient.from('requests').update({ [field]: val }).eq('id', id);
+                fetchData();
+            };
+
             const isAdmin = user && ['henrik.h.wiik@gmail.com', 'marthe.epost@ingka.ikea.com', 'karolina.epost@ingka.ikea.com'].includes(user.email);
 
-            if (!user) return <div className="p-20 text-center font-bold tracking-widest text-gray-300 uppercase">Loading RCMP...</div>;
+            if (!user) return <div className="p-20 text-center font-bold tracking-widest text-gray-300 uppercase italic">RCMP...</div>;
 
             const activeInsights = insights.filter(i => i.is_active);
 
             return (
                 <div className="flex min-h-screen">
+                    {/* SIDEBAR */}
                     <aside className="w-72 bg-white border-r border-gray-100 flex flex-col fixed h-full z-20 pt-12">
                         <Logo />
                         <nav className="flex-1">
@@ -80,59 +86,64 @@
                             <button onClick={() => setView('insights')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'insights' ? 'sidebar-active' : 'text-gray-500'}`}>💡 Insight Engine</button>
                             <button onClick={() => setView('new')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'new' ? 'sidebar-active' : 'text-gray-500'}`}>✨ Ny forespørsel</button>
                             {isAdmin && (
-                                <div className="mt-8 pt-8 border-t border-gray-50">
+                                <div className="mt-8 pt-8 border-t border-gray-100">
                                     <button onClick={() => setView('admin')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-bold sidebar-item ${view === 'admin' ? 'sidebar-active' : 'text-red-400'}`}>🛡️ Control Center</button>
                                 </div>
                             )}
                         </nav>
                     </aside>
 
+                    {/* MAIN */}
                     <main className="flex-1 ml-72 p-16">
                         <div className="max-w-5xl mx-auto">
                             
+                            {/* VIEW: DASHBOARD */}
                             {view === 'dashboard' && (
                                 <div className="space-y-12">
                                     <h2 className="text-5xl font-extrabold tracking-tight text-gray-900">Min side</h2>
                                     <div className="grid grid-cols-1 gap-4">
                                         {requests.filter(r => r.requested_by === user.email).map(req => (
-                                            <div key={req.id} className="glass-card p-8 rounded-[2.5rem] flex justify-between items-center border border-gray-50">
+                                            <div key={req.id} className="glass-card p-8 rounded-[2.5rem] flex justify-between items-center">
                                                 <div>
                                                     <span className="bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">{req.type}</span>
                                                     <h3 className="text-2xl font-black mt-3 text-gray-900">{req.title}</h3>
-                                                    <p className="text-sm text-gray-400 font-medium">Behandles av: {req.assigned_to}</p>
+                                                    <p className="text-sm text-gray-400 font-medium">Status: <span className="text-gray-900">{req.status}</span> • Ansvar: {req.assigned_to}</p>
                                                 </div>
-                                                <span className="bg-gray-900 text-white px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest">{req.status}</span>
+                                                <button className="bg-gray-100 hover:bg-gray-200 text-gray-900 px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-colors">Detaljer</button>
                                             </div>
                                         ))}
                                     </div>
                                 </div>
                             )}
 
+                            {/* VIEW: INSIGHT ENGINE */}
                             {view === 'insights' && (
                                 <div className="space-y-12">
                                     <h2 className="text-5xl font-extrabold tracking-tight text-gray-900">Insight Engine</h2>
-                                    <div className={`grid gap-6 ${
+                                    <div className={`grid gap-8 ${
                                         activeInsights.length <= 2 ? 'grid-cols-1 md:grid-cols-2' : 
                                         activeInsights.length === 3 ? 'grid-cols-1 md:grid-cols-3' : 
                                         activeInsights.length === 4 ? 'grid-cols-2' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
                                     }`}>
-                                        {activeInsights.map((item, idx) => (
-                                            <div key={item.id} className="glass-card rounded-[3rem] flex flex-col justify-between min-h-[380px] relative">
+                                        {activeInsights.map((item) => (
+                                            <div key={item.id} className="glass-card rounded-[3.5rem] flex flex-col justify-between min-h-[420px] relative group hover:shadow-2xl transition-all duration-500">
                                                 {item.image_url && (
-                                                    <div className="absolute top-0 left-0 w-full h-48 z-0">
-                                                        <img src={item.image_url} className="w-full h-full object-cover" alt="" />
+                                                    <div className="absolute top-0 left-0 w-full h-56 z-0">
+                                                        <img src={item.image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" alt="" />
                                                         <div className="absolute inset-0 image-overlay"></div>
                                                     </div>
                                                 )}
-                                                <div className="p-10 relative z-10 pt-32">
-                                                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">{item.tag}</span>
+                                                <div className="p-10 relative z-10 pt-40">
+                                                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600/60">{item.tag}</span>
                                                     <h3 className="text-2xl font-black mt-4 mb-4 text-gray-900 leading-tight">{item.title}</h3>
-                                                    <p className="text-gray-500 font-medium text-sm leading-relaxed">{item.description}</p>
+                                                    <p className="text-gray-500 font-medium text-sm leading-relaxed line-clamp-3">{item.description}</p>
                                                 </div>
                                                 <div className="p-10 pt-0 relative z-10">
-                                                    <button style={{backgroundColor: item.color_hex}} className="w-full text-white py-4 rounded-2xl font-bold text-xs uppercase tracking-widest btn-animate">
-                                                        {item.button_text} ➜
-                                                    </button>
+                                                    <a href={item.link_url || "#"} target="_blank" rel="noopener noreferrer">
+                                                        <button style={{backgroundColor: item.color_hex}} className="w-full text-white py-4 rounded-[1.5rem] font-bold text-xs uppercase tracking-[0.15em] btn-animate shadow-lg">
+                                                            {item.button_text} ➜
+                                                        </button>
+                                                    </a>
                                                 </div>
                                             </div>
                                         ))}
@@ -140,6 +151,7 @@
                                 </div>
                             )}
 
+                            {/* VIEW: ADMIN */}
                             {view === 'admin' && (
                                 <div className="space-y-10">
                                     <div className="flex gap-4 p-1 bg-gray-100 rounded-2xl w-fit">
@@ -148,22 +160,38 @@
                                     </div>
 
                                     {adminSubView === 'insights' && (
-                                        <div className="grid grid-cols-1 gap-6">
+                                        <div className="grid grid-cols-1 gap-8">
                                             {insights.map(item => (
-                                                <div key={item.id} className="glass-card p-8 rounded-3xl space-y-4">
-                                                    <div className="flex justify-between items-center">
-                                                        <h4 className="font-bold text-gray-900">Boble #{item.id}</h4>
-                                                        <label className="flex items-center gap-2 text-xs font-bold">
-                                                            <input type="checkbox" checked={item.is_active} onChange={(e) => updateInsight(item.id, 'is_active', e.target.checked)} /> Aktiv
+                                                <div key={item.id} className="glass-card p-10 rounded-[2.5rem] space-y-6">
+                                                    <div className="flex justify-between items-center border-b border-gray-100 pb-4">
+                                                        <h4 className="font-black text-lg">Modul #{item.id}</h4>
+                                                        <label className="flex items-center gap-3 cursor-pointer">
+                                                            <span className="text-xs font-bold uppercase tracking-widest text-gray-400">Aktiv:</span>
+                                                            <input type="checkbox" className="w-5 h-5 accent-blue-600" checked={item.is_active} onChange={(e) => updateInsight(item.id, 'is_active', e.target.checked)} />
                                                         </label>
                                                     </div>
-                                                    <div className="grid grid-cols-2 gap-4">
-                                                        <input defaultValue={item.title} onBlur={(e) => updateInsight(item.id, 'title', e.target.value)} className="p-3 bg-gray-50 rounded-xl text-xs font-bold outline-none" placeholder="Tittel" />
-                                                        <input defaultValue={item.tag} onBlur={(e) => updateInsight(item.id, 'tag', e.target.value)} className="p-3 bg-gray-50 rounded-xl text-xs font-bold outline-none" placeholder="Tag" />
-                                                        <input defaultValue={item.image_url} onBlur={(e) => updateInsight(item.id, 'image_url', e.target.value)} className="col-span-2 p-3 bg-gray-50 rounded-xl text-xs outline-none" placeholder="Bilde-URL (https://...)" />
-                                                        <textarea defaultValue={item.description} onBlur={(e) => updateInsight(item.id, 'description', e.target.value)} className="col-span-2 p-3 bg-gray-50 rounded-xl text-xs h-20 outline-none" placeholder="Beskrivelse"></textarea>
-                                                        <input defaultValue={item.button_text} onBlur={(e) => updateInsight(item.id, 'button_text', e.target.value)} className="p-3 bg-gray-50 rounded-xl text-xs outline-none" placeholder="Knappetekst" />
-                                                        <input type="color" defaultValue={item.color_hex} onChange={(e) => updateInsight(item.id, 'color_hex', e.target.value)} className="w-full h-10 rounded-xl" />
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                                        <div className="space-y-1"><label className="text-[10px] font-bold uppercase text-gray-400 ml-2">Tittel</label>
+                                                            <input defaultValue={item.title} onBlur={(e) => updateInsight(item.id, 'title', e.target.value)} className="w-full p-4 bg-gray-50 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 ring-blue-100" />
+                                                        </div>
+                                                        <div className="space-y-1"><label className="text-[10px] font-bold uppercase text-gray-400 ml-2">Tag</label>
+                                                            <input defaultValue={item.tag} onBlur={(e) => updateInsight(item.id, 'tag', e.target.value)} className="w-full p-4 bg-gray-50 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 ring-blue-100" />
+                                                        </div>
+                                                        <div className="space-y-1 md:col-span-2"><label className="text-[10px] font-bold uppercase text-gray-400 ml-2">Beskrivelse</label>
+                                                            <textarea defaultValue={item.description} onBlur={(e) => updateInsight(item.id, 'description', e.target.value)} className="w-full p-4 bg-gray-50 rounded-2xl text-sm font-medium border-none outline-none focus:ring-2 ring-blue-100 h-24" />
+                                                        </div>
+                                                        <div className="space-y-1"><label className="text-[10px] font-bold uppercase text-gray-400 ml-2">Knappetekst</label>
+                                                            <input defaultValue={item.button_text} onBlur={(e) => updateInsight(item.id, 'button_text', e.target.value)} className="w-full p-4 bg-gray-50 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 ring-blue-100" />
+                                                        </div>
+                                                        <div className="space-y-1"><label className="text-[10px] font-bold uppercase text-gray-400 ml-2">Knappefarge</label>
+                                                            <input type="color" defaultValue={item.color_hex} onChange={(e) => updateInsight(item.id, 'color_hex', e.target.value)} className="w-full h-[52px] bg-gray-50 rounded-2xl border-none p-1 cursor-pointer" />
+                                                        </div>
+                                                        <div className="space-y-1"><label className="text-[10px] font-bold uppercase text-gray-400 ml-2">Bilde-URL</label>
+                                                            <input defaultValue={item.image_url} onBlur={(e) => updateInsight(item.id, 'image_url', e.target.value)} className="w-full p-4 bg-gray-50 rounded-2xl text-sm border-none outline-none focus:ring-2 ring-blue-100" placeholder="https://..." />
+                                                        </div>
+                                                        <div className="space-y-1"><label className="text-[10px] font-bold uppercase text-gray-400 ml-2">Link-URL (Hvor skal knappen sende brukeren?)</label>
+                                                            <input defaultValue={item.link_url} onBlur={(e) => updateInsight(item.id, 'link_url', e.target.value)} className="w-full p-4 bg-blue-50/50 rounded-2xl text-sm font-bold border-none outline-none focus:ring-2 ring-blue-200" placeholder="https://..." />
+                                                        </div>
                                                     </div>
                                                 </div>
                                             ))}
@@ -171,19 +199,26 @@
                                     )}
 
                                     {adminSubView === 'tasks' && (
-                                        <div className="glass-card rounded-3xl overflow-hidden">
+                                        <div className="glass-card rounded-[2.5rem] overflow-hidden">
                                             <table className="w-full text-left">
+                                                <thead className="bg-gray-50/50">
+                                                    <tr>
+                                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-gray-400">Oppgave</th>
+                                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-gray-400">Ansvarlig</th>
+                                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-gray-400 text-right">Handling</th>
+                                                    </tr>
+                                                </thead>
                                                 <tbody className="divide-y divide-gray-50 text-sm">
                                                     {requests.map(req => (
-                                                        <tr key={req.id}>
+                                                        <tr key={req.id} className="hover:bg-gray-50/30 transition-colors">
                                                             <td className="p-6 font-bold">{req.title}</td>
                                                             <td className="p-6">
-                                                                <select value={req.assigned_to} onChange={(e) => updateInsight(req.id, 'assigned_to', e.target.value)} className="bg-gray-50 p-2 rounded-lg text-[10px] font-black uppercase outline-none">
+                                                                <select value={req.assigned_to} onChange={(e) => updateRequest(req.id, 'assigned_to', e.target.value)} className="bg-gray-100 p-2 rounded-xl text-[10px] font-black uppercase outline-none border-none">
                                                                     {TEAM.map(t => <option key={t}>{t}</option>)}
                                                                 </select>
                                                             </td>
                                                             <td className="p-6 text-right">
-                                                                <span className="text-[10px] font-black uppercase text-gray-400">{req.status}</span>
+                                                                <button className="text-gray-400 hover:text-gray-900 font-bold text-xs uppercase tracking-tighter">Endre status</button>
                                                             </td>
                                                         </tr>
                                                     ))}
