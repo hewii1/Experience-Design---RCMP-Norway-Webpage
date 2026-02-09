@@ -44,6 +44,7 @@
             const [systems, setSystems] = useState([]);
             const [insights, setInsights] = useState([]);
             const [activeDecision, setActiveDecision] = useState(null);
+            const [calendarEvents, setCalendarEvents] = useState([]); // NY: kalender-hendelser lokalt
 
             useEffect(() => {
                 const init = async () => {
@@ -312,6 +313,8 @@
                                     onDecide={(id, s) => setActiveDecision({ id, status: s })}
                                     counts={{ tasks: taskCount, access: accessCount }}
                                     getStaffColor={getStaffColor}
+                                    calendarEvents={calendarEvents}
+                                    setCalendarEvents={setCalendarEvents}
                                 />
                             )}
                         </div>
@@ -500,7 +503,9 @@
             onUpdate,
             onDecide,
             counts,
-            getStaffColor
+            getStaffColor,
+            calendarEvents,
+            setCalendarEvents
         }) => (
             <div className="space-y-10 animate-in fade-in duration-500">
                 <div className="admin-tab-bar">
@@ -533,6 +538,12 @@
                         className={`admin-tab ${subView === 'Insights' ? 'admin-tab-active' : 'text-gray-400'}`}
                     >
                         Insights
+                    </button>
+                    <button
+                        onClick={() => setSubView('Calendar')}
+                        className={`admin-tab ${subView === 'Calendar' ? 'admin-tab-active' : 'text-gray-400'}`}
+                    >
+                        Calendar
                     </button>
                 </div>
 
@@ -818,8 +829,258 @@
                             </div>
                         </div>
                     ))}
+
+                {subView === 'Calendar' && (
+                    <CalendarAdmin events={calendarEvents} setEvents={setCalendarEvents} />
+                )}
             </div>
         );
+
+        // NY: Kalender-komponent under Control Center
+        const CalendarAdmin = ({ events, setEvents }) => {
+            const today = new Date();
+            const [year, setYear] = useState(today.getFullYear());
+            const [month, setMonth] = useState(today.getMonth()); // 0-11
+            const [selectedDate, setSelectedDate] = useState(null); // 'YYYY-MM-DD'
+            const [formType, setFormType] = useState('OFFICE');
+            const [formTitle, setFormTitle] = useState('');
+            const [formNote, setFormNote] = useState('');
+
+            const monthNames = [
+                'Januar','Februar','Mars','April','Mai','Juni',
+                'Juli','August','September','Oktober','November','Desember'
+            ];
+            const weekdayShort = ['Man','Tir','Ons','Tor','Fre','Lør','Søn'];
+
+            const startOfMonth = new Date(year, month, 1);
+            const startWeekday = (startOfMonth.getDay() + 6) % 7; // mandag = 0
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+            const weeks = [];
+            let currentDay = 1 - startWeekday;
+            while (currentDay <= daysInMonth) {
+                const week = [];
+                for (let i = 0; i < 7; i++) {
+                    if (currentDay < 1 || currentDay > daysInMonth) {
+                        week.push(null);
+                    } else {
+                        const dateStr = `${year}-${String(month + 1).padStart(2,'0')}-${String(currentDay).padStart(2,'0')}`;
+                        const dayEvents = events.filter(e => e.date === dateStr);
+                        week.push({ day: currentDay, dateStr, events: dayEvents });
+                    }
+                    currentDay++;
+                }
+                weeks.push(week);
+            }
+
+            const changeMonth = (delta) => {
+                const newDate = new Date(year, month + delta, 1);
+                setYear(newDate.getFullYear());
+                setMonth(newDate.getMonth());
+            };
+
+            const openFormForDate = (dateStr) => {
+                setSelectedDate(dateStr);
+                setFormType('OFFICE');
+                setFormTitle('');
+                setFormNote('');
+            };
+
+            const saveEvent = () => {
+                if (!selectedDate || !formTitle) return;
+                const newEvent = {
+                    id: Date.now(),
+                    date: selectedDate,
+                    type: formType,
+                    title: formTitle,
+                    note: formNote
+                };
+                setEvents([...events, newEvent]);
+                setSelectedDate(null);
+            };
+
+            const typeLabel = {
+                TASK: 'Oppgave',
+                OFFICE: 'Kontordag',
+                HOLIDAY: 'Ferie'
+            };
+
+            const typeClasses = {
+                TASK: 'bg-sky-100 text-sky-700',
+                OFFICE: 'bg-emerald-100 text-emerald-700',
+                HOLIDAY: 'bg-amber-100 text-amber-700'
+            };
+
+            const readableDate = (iso) => {
+                const d = new Date(iso);
+                return d.toLocaleDateString('no-NO', { day: '2-digit', month: 'long', year: 'numeric' });
+            };
+
+            return (
+                <div className="space-y-6">
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-3xl font-black italic text-[#0058AB]">XD Calendar</h2>
+                        <div className="flex items-center gap-3">
+                            <button
+                                onClick={() => changeMonth(-1)}
+                                className="px-4 py-2 text-xs font-black uppercase tracking-widest rounded-xl bg-white border border-gray-200 btn-clickable"
+                            >
+                                ← Forrige
+                            </button>
+                            <div className="text-sm font-black text-gray-500 uppercase tracking-[0.25em]">
+                                {monthNames[month]} {year}
+                            </div>
+                            <button
+                                onClick={() => changeMonth(1)}
+                                className="px-4 py-2 text-xs font-black uppercase tracking-widest rounded-xl bg-white border border-gray-200 btn-clickable"
+                            >
+                                Neste →
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="glass-card p-8 bg-white shadow-sm">
+                        <div className="grid grid-cols-7 gap-3 mb-3">
+                            {weekdayShort.map(d => (
+                                <div
+                                    key={d}
+                                    className="text-[10px] font-black uppercase tracking-widest text-gray-400 text-center"
+                                >
+                                    {d}
+                                </div>
+                            ))}
+                        </div>
+                        <div className="grid grid-cols-7 gap-3">
+                            {weeks.map((week, wi) =>
+                                week.map((cell, ci) => {
+                                    if (!cell) {
+                                        return (
+                                            <div key={`${wi}-${ci}`} className="h-24 rounded-3xl bg-gray-50"></div>
+                                        );
+                                    }
+                                    const isToday =
+                                        cell.dateStr ===
+                                        new Date().toISOString().split('T')[0];
+
+                                    return (
+                                        <button
+                                            key={cell.dateStr}
+                                            onClick={() => openFormForDate(cell.dateStr)}
+                                            className={`h-24 rounded-3xl text-left px-3 pt-2 pb-1 bg-gray-50 hover:bg-gray-100 border border-transparent hover:border-[#0058AB]/20 transition flex flex-col`}
+                                        >
+                                            <div className="flex items-center justify-between mb-1">
+                                                <span className="text-xs font-black">
+                                                    {cell.day}
+                                                </span>
+                                                {isToday && (
+                                                    <span className="text-[8px] font-black text-emerald-500 uppercase">
+                                                        I dag
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <div className="space-y-1 overflow-hidden">
+                                                {cell.events.slice(0,3).map(ev => (
+                                                    <div
+                                                        key={ev.id}
+                                                        className={`text-[9px] px-2 py-1 rounded-full font-bold truncate ${typeClasses[ev.type]}`}
+                                                    >
+                                                        {typeLabel[ev.type]} · {ev.title}
+                                                    </div>
+                                                ))}
+                                                {cell.events.length > 3 && (
+                                                    <div className="text-[9px] text-gray-400 font-bold">
+                                                        +{cell.events.length - 3} flere
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </button>
+                                    );
+                                })
+                            )}
+                        </div>
+                    </div>
+
+                    {selectedDate && (
+                        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 flex items-center justify-center p-6">
+                            <div className="bg-white p-8 rounded-[2rem] w-full max-w-lg shadow-2xl">
+                                <h3 className="text-2xl font-black mb-1">Ny kalenderoppføring</h3>
+                                <p className="text-[11px] font-black uppercase tracking-[0.25em] text-gray-400 mb-4">
+                                    {readableDate(selectedDate)}
+                                </p>
+
+                                <div className="grid grid-cols-3 gap-2 mb-6">
+                                    <button
+                                        onClick={() => setFormType('TASK')}
+                                        className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border ${
+                                            formType === 'TASK'
+                                                ? 'bg-sky-500 text-white border-sky-500'
+                                                : 'bg-sky-50 text-sky-700 border-sky-100'
+                                        }`}
+                                    >
+                                        Oppgave
+                                    </button>
+                                    <button
+                                        onClick={() => setFormType('OFFICE')}
+                                        className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border ${
+                                            formType === 'OFFICE'
+                                                ? 'bg-emerald-500 text-white border-emerald-500'
+                                                : 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                                        }`}
+                                    >
+                                        Kontordag
+                                    </button>
+                                    <button
+                                        onClick={() => setFormType('HOLIDAY')}
+                                        className={`py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border ${
+                                            formType === 'HOLIDAY'
+                                                ? 'bg-amber-500 text-white border-amber-500'
+                                                : 'bg-amber-50 text-amber-700 border-amber-100'
+                                        }`}
+                                    >
+                                        Ferie
+                                    </button>
+                                </div>
+
+                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1">
+                                    Tittel
+                                </p>
+                                <input
+                                    value={formTitle}
+                                    onChange={e => setFormTitle(e.target.value)}
+                                    className="input-field mb-4"
+                                    placeholder="F.eks. 'XD kontordag', 'Henrik ferie', 'Leveranse HCS'"
+                                />
+
+                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2 ml-1">
+                                    Notat (valgfritt)
+                                </p>
+                                <textarea
+                                    value={formNote}
+                                    onChange={e => setFormNote(e.target.value)}
+                                    className="input-field h-24 mb-6"
+                                    placeholder="Detaljer, hvem som gjelder osv."
+                                ></textarea>
+
+                                <div className="flex gap-4 justify-end">
+                                    <button
+                                        onClick={() => setSelectedDate(null)}
+                                        className="text-sm font-bold text-gray-400"
+                                    >
+                                        Avbryt
+                                    </button>
+                                    <button
+                                        onClick={saveEvent}
+                                        className="px-8 py-3 rounded-2xl bg-[#0058AB] text-white text-[11px] font-black uppercase tracking-widest btn-clickable"
+                                    >
+                                        Lagre
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
 
         const LoginScreen = ({ onLogin }) => {
             const [mode, setMode] = useState('login');
