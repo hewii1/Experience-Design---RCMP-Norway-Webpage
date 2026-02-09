@@ -49,6 +49,13 @@
             const [activeDecision, setActiveDecision] = useState(null);
             const [calendarEvents, setCalendarEvents] = useState([]);
 
+            const ADMIN_EMAILS = [
+                'henrik.h.wiik@gmail.com',
+                'marthe.dotterud@ingka.ikea.com',
+                'knut.reinholdtsen@ingka.ikea.com',
+                'karolina.chudy@ingka.ikea.com'
+            ];
+
             useEffect(() => {
                 const init = async () => {
                     const { data: { session } } = await supabaseClient.auth.getSession();
@@ -222,7 +229,7 @@
                                 label="Rapporter feil"
                             />
                             <div className="mx-8 border-t border-gray-100 my-4"></div>
-                            {user.email === 'henrik.h.wiik@gmail.com' && (
+                            {ADMIN_EMAILS.includes(user.email?.toLowerCase()) && (
                                 <button
                                     onClick={() => setView('admin')}
                                     className={`sidebar-item px-6 py-4 font-bold ${
@@ -1354,7 +1361,6 @@
                         </div>
                     </div>
 
-                    {/* Høyre side - samme stil som tidligere versjon */}
                     <div className="flex-1 hero-gradient flex items-center justify-center relative overflow-hidden">
                         <div className="hero-bg-text">RCMP</div>
                         <div className="relative z-10 text-center">
