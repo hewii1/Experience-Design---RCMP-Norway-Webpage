@@ -22,6 +22,8 @@
         .admin-tab-bar { background-color: #f3f4f6; padding: 6px; border-radius: 18px; display: inline-flex; gap: 4px; }
         .admin-tab { padding: 8px 20px; border-radius: 12px; font-size: 12px; font-weight: 700; transition: all 0.2s; cursor: pointer; border: none; }
         .admin-tab-active { background-color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.05); color: #101828; }
+        .badge-count { background-color: #ef4444; color: white; font-size: 10px; font-weight: 900; padding: 2px 6px; border-radius: 10px; position: absolute; right: 12px; }
+        .hero-gradient { background: linear-gradient(135deg, #004d99 0%, #0058AB 100%); position: relative; }
     </style>
 </head>
 <body>
@@ -40,6 +42,7 @@
             const [requests, setRequests] = useState([]);
             const [systems, setSystems] = useState([]);
             const [insights, setInsights] = useState([]);
+            const [activeDecision, setActiveDecision] = useState(null);
 
             useEffect(() => {
                 const init = async () => {
@@ -60,19 +63,47 @@
                 setInsights(i.data || []);
             };
 
+            const submitRequest = async (type, title) => {
+                await supabaseClient.from('requests').insert([{ type, title, requested_by: user.email, status: 'Open', assigned_to: 'Ikke tildelt' }]);
+                setView('dashboard');
+                fetchAllData();
+            };
+
             const updateDb = async (table, id, updates) => {
                 await supabaseClient.from(table).update(updates).eq('id', id);
                 fetchAllData();
             };
 
+            const unassignedCount = useMemo(() => requests.filter(r => r.status === 'Open' && (r.type === 'ACCESS' || r.assigned_to === 'Ikke tildelt')).length, [requests]);
+
             if (!user) return <LoginScreen onLogin={(u) => { setUser(u); fetchAllData(); }} />;
 
             return (
                 <div className="flex min-h-screen">
+                    {/* MODAL FOR BESLUTNING */}
+                    {activeDecision && (
+                        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
+                            <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-md">
+                                <h3 className="text-2xl font-black mb-6">Begrunnelse for {activeDecision.status === 'Completed' ? 'Godkjenning' : 'Avslag'}</h3>
+                                <textarea id="reasonTxt" className="input-field h-32 mb-6" placeholder="Skriv en kort melding til brukeren..."></textarea>
+                                <div className="flex gap-4">
+                                    <button onClick={() => setActiveDecision(null)} className="flex-1 font-bold text-gray-400">Avbryt</button>
+                                    <button onClick={() => {
+                                        updateDb('requests', activeDecision.id, { 
+                                            status: activeDecision.status, 
+                                            admin_reason: document.getElementById('reasonTxt').value 
+                                        });
+                                        setActiveDecision(null);
+                                    }} className="flex-[2] bg-slate-900 text-white py-4 rounded-2xl font-black uppercase tracking-widest">Bekreft</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     <aside className="w-72 bg-white border-r fixed h-full pt-12 flex flex-col">
                         <div className="px-10 mb-8">
-                            <h1 className="text-4xl font-black italic">RCMP</h1>
-                            <p className="text-[9px] font-black uppercase tracking-widest text-amber-500 mt-1">Experience Design</p>
+                            <h1 className="text-4xl font-black italic leading-none">RCMP</h1>
+                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mt-1">Experience Design Portal</p>
                         </div>
                         <nav className="flex-1">
                             <button onClick={() => setView('dashboard')} className={`sidebar-item px-6 py-4 w-full ${view === 'dashboard' ? 'sidebar-active' : ''}`}>👤 Min side</button>
@@ -80,17 +111,45 @@
                             <button onClick={() => setView('live')} className={`sidebar-item px-6 py-4 w-full ${view === 'live' ? 'sidebar-active' : ''}`}>🛰️ Live Ops</button>
                             <button onClick={() => setView('insights')} className={`sidebar-item px-6 py-4 w-full ${view === 'insights' ? 'sidebar-active' : ''}`}>💡 Insight Engine</button>
                             <div className="mx-8 border-t border-gray-100 my-4"></div>
-                            <button onClick={() => setView('access')} className="sidebar-item px-6 py-4 w-full">🔑 Be om tilgang</button>
-                            <button onClick={() => setView('new')} className="sidebar-item px-6 py-4 w-full">✨ Ny forespørsel</button>
+                            <button onClick={() => setView('access')} className={`sidebar-item px-6 py-4 w-full ${view === 'access' ? 'sidebar-active' : ''}`}>🔑 Be om tilgang</button>
+                            <button onClick={() => setView('new')} className={`sidebar-item px-6 py-4 w-full ${view === 'new' ? 'sidebar-active' : ''}`}>✨ Ny forespørsel</button>
+                            <button onClick={() => setView('error')} className={`sidebar-item px-6 py-4 w-full ${view === 'error' ? 'sidebar-active' : ''}`}>⚠️ Rapporter feil</button>
                             <div className="mx-8 border-t border-gray-100 my-4"></div>
                             {user.email === 'henrik.h.wiik@gmail.com' && (
-                                <button onClick={() => setView('admin')} className={`sidebar-item px-6 py-4 font-bold w-full ${view === 'admin' ? 'sidebar-active' : 'text-red-500'}`}>🛡️ Control Center</button>
+                                <button onClick={() => setView('admin')} className={`sidebar-item px-6 py-4 font-bold w-full ${view === 'admin' ? 'sidebar-active' : 'text-red-500'}`}>
+                                    🛡️ Control Center {unassignedCount > 0 && <span className="badge-count">{unassignedCount}</span>}
+                                </button>
                             )}
                         </nav>
+                        <button onClick={async () => { await supabaseClient.auth.signOut(); setUser(null); }} className="m-8 p-4 text-[10px] font-black uppercase tracking-widest text-gray-400 hover:text-red-500 text-left">← Logg ut</button>
                     </aside>
 
                     <main className="flex-1 ml-72 p-16">
                         <div className="max-w-5xl mx-auto">
+                            {view === 'dashboard' && (
+                                <div className="space-y-8">
+                                    <h2 className="text-4xl font-black italic">Min side</h2>
+                                    {requests.filter(r => r.requested_by === user.email).length === 0 && <p className="text-gray-400">Du har ingen aktive forespørsler.</p>}
+                                    {requests.filter(r => r.requested_by === user.email).map(req => (
+                                        <div key={req.id} className="glass-card p-8 flex justify-between items-center bg-white border-l-8 border-l-blue-500 shadow-sm">
+                                            <div>
+                                                <span className={`text-[9px] font-black uppercase px-2 py-1 rounded ${req.status === 'Open' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'}`}>{req.status}</span>
+                                                <h3 className="text-xl font-black mt-2">{req.title}</h3>
+                                                {req.admin_reason && <p className="text-sm italic text-blue-600 mt-2 font-medium">"{req.admin_reason}"</p>}
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-[10px] font-black text-gray-400 uppercase">Status</p>
+                                                <p className="font-bold">{req.assigned_to}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {view === 'new' && <FormView title="Ny forespørsel" placeholder="Hva trenger du hjelp med?" onSubmit={(val) => submitRequest('TASK', val)} />}
+                            {view === 'access' && <FormView title="Be om tilgang" placeholder="Hvilke systemer trenger du tilgang til?" onSubmit={(val) => submitRequest('ACCESS', val)} />}
+                            {view === 'error' && <FormView title="Rapporter feil" placeholder="Beskriv feilen..." onSubmit={(val) => submitRequest('ERROR', val)} />}
+
                             {view === 'live' && (
                                 <div className="space-y-8">
                                     <h2 className="text-4xl font-black italic">Live Ops</h2>
@@ -98,13 +157,12 @@
                                         {systems.map(s => (
                                             <div key={s.id} className="glass-card p-8 bg-white flex items-center justify-between shadow-sm">
                                                 <div className="flex items-center gap-6">
-                                                    <div className={`status-dot ${s.status === 'online' ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]' : s.status === 'degraded' ? 'bg-amber-500 animate-pulse' : 'bg-red-500'}`}></div>
+                                                    <div className={`status-dot ${s.status === 'online' ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]' : 'bg-amber-500 animate-pulse'}`}></div>
                                                     <div>
                                                         <h3 className="text-2xl font-black">{s.system_name}</h3>
-                                                        <p className="text-gray-400 font-medium">{s.status_message || 'Alle systemer opererer normalt.'}</p>
+                                                        <p className="text-gray-400 font-medium">{s.status_message}</p>
                                                     </div>
                                                 </div>
-                                                <span className="text-[10px] font-black uppercase tracking-widest text-gray-300">{s.status}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -116,17 +174,12 @@
                                     <h2 className="text-4xl font-black italic">Insight Engine</h2>
                                     <div className="grid grid-cols-2 gap-8">
                                         {insights.filter(i => i.is_active).map(item => (
-                                            <div key={item.id} className="glass-card overflow-hidden bg-white shadow-lg flex flex-col">
-                                                <div className="h-52 bg-gray-100 overflow-hidden">
-                                                    <img src={item.image_url || 'https://via.placeholder.com/600x400'} className="w-full h-full object-cover" />
-                                                </div>
-                                                <div className="p-10 flex-1">
+                                            <div key={item.id} className="glass-card overflow-hidden bg-white shadow-lg">
+                                                <div className="h-52 bg-gray-100"><img src={item.image_url} className="w-full h-full object-cover" /></div>
+                                                <div className="p-10">
                                                     <span className="text-[10px] font-black uppercase text-blue-600">{item.tag}</span>
-                                                    <h3 className="text-2xl font-black mt-2 leading-tight">{item.title}</h3>
-                                                    <p className="text-gray-500 text-sm mt-4 line-clamp-2">{item.description}</p>
-                                                    <a href={item.link_url} target="_blank" className="block mt-8">
-                                                        <button style={{backgroundColor: item.color_hex}} className="w-full text-white py-4 rounded-2xl font-black uppercase text-xs btn-clickable shadow-lg">Åpne rapport ➜</button>
-                                                    </a>
+                                                    <h3 className="text-2xl font-black mt-2">{item.title}</h3>
+                                                    <button style={{backgroundColor: item.color_hex}} className="w-full text-white py-4 rounded-2xl font-black uppercase text-xs mt-8 btn-clickable">Åpne ➜</button>
                                                 </div>
                                             </div>
                                         ))}
@@ -135,72 +188,100 @@
                             )}
 
                             {view === 'admin' && (
-                                <div className="space-y-10">
-                                    <div className="admin-tab-bar">
-                                        {['Tasks', 'Live', 'Insights'].map(t => (
-                                            <button key={t} onClick={() => setAdminSubView(t)} className={`admin-tab ${adminSubView === t ? 'admin-tab-active' : 'text-gray-400'}`}>{t}</button>
-                                        ))}
-                                    </div>
-
-                                    {adminSubView === 'Live' && systems.map(s => (
-                                        <div key={s.id} className="glass-card p-10 bg-white mb-6 space-y-6">
-                                            <div className="flex gap-4">
-                                                <input defaultValue={s.system_name} onBlur={(e) => updateDb('system_status', s.id, {system_name: e.target.value})} className="input-field font-bold" />
-                                                <select value={s.status} onChange={(e) => updateDb('system_status', s.id, {status: e.target.value})} className="input-field w-40 font-black uppercase text-xs">
-                                                    <option value="online">Online</option>
-                                                    <option value="degraded">Degradert</option>
-                                                    <option value="offline">Offline</option>
-                                                </select>
-                                            </div>
-                                            <input defaultValue={s.status_message} onBlur={(e) => updateDb('system_status', s.id, {status_message: e.target.value})} className="input-field italic" placeholder="Statusmelding..." />
-                                        </div>
-                                    ))}
-
-                                    {adminSubView === 'Insights' && insights.map(item => (
-                                        <div key={item.id} className="glass-card p-10 bg-white mb-8 space-y-4">
-                                            <div className="flex justify-between items-center font-black">
-                                                Modul: {item.title}
-                                                <input type="checkbox" checked={item.is_active} onChange={(e) => updateDb('insights', item.id, {is_active: e.target.checked})} className="w-6 h-6" />
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <input defaultValue={item.title} onBlur={(e) => updateDb('insights', item.id, {title: e.target.value})} className="input-field" placeholder="Tittel" />
-                                                <input defaultValue={item.tag} onBlur={(e) => updateDb('insights', item.id, {tag: e.target.value})} className="input-field" placeholder="Tag (f.eks PowerBI)" />
-                                                <textarea defaultValue={item.description} onBlur={(e) => updateDb('insights', item.id, {description: e.target.value})} className="col-span-2 input-field h-24" placeholder="Kort beskrivelse..." />
-                                                <input defaultValue={item.image_url} onBlur={(e) => updateDb('insights', item.id, {image_url: e.target.value})} className="input-field" placeholder="Bilde URL" />
-                                                <input defaultValue={item.link_url} onBlur={(e) => updateDb('insights', item.id, {link_url: e.target.value})} className="input-field" placeholder="Link til rapport" />
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
+                                <AdminPanel 
+                                    requests={requests} 
+                                    systems={systems} 
+                                    insights={insights} 
+                                    subView={adminSubView} 
+                                    setSubView={setAdminSubView} 
+                                    onUpdate={updateDb}
+                                    onDecide={(id, status) => setActiveDecision({id, status})}
+                                />
                             )}
-
-                            {view === 'dashboard' && <h2 className="text-4xl font-black italic">Dashboard Kommer...</h2>}
                         </div>
                     </main>
                 </div>
             );
         };
 
+        const FormView = ({ title, placeholder, onSubmit }) => {
+            const [val, setVal] = useState('');
+            return (
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <h2 className="text-4xl font-black italic mb-10">{title}</h2>
+                    <div className="glass-card p-10 bg-white shadow-xl">
+                        <textarea value={val} onChange={(e) => setVal(e.target.value)} className="w-full h-40 bg-gray-50 rounded-3xl p-8 outline-none text-xl font-medium mb-6" placeholder={placeholder}></textarea>
+                        <button onClick={() => { onSubmit(val); setVal(''); }} className="bg-[#0058AB] text-white px-10 py-5 rounded-2xl font-black uppercase tracking-widest btn-clickable">Send inn ➜</button>
+                    </div>
+                </div>
+            );
+        };
+
+        const AdminPanel = ({ requests, systems, insights, subView, setSubView, onUpdate, onDecide }) => (
+            <div className="space-y-10">
+                <div className="admin-tab-bar">
+                    {['Tasks', 'Live', 'Insights'].map(t => (
+                        <button key={t} onClick={() => setSubView(t)} className={`admin-tab ${subView === t ? 'admin-tab-active' : 'text-gray-400'}`}>{t}</button>
+                    ))}
+                </div>
+
+                {subView === 'Tasks' && requests.filter(r => r.status === 'Open').map(req => (
+                    <div key={req.id} className="glass-card p-8 flex justify-between items-center bg-white shadow-sm border-l-8 border-l-blue-500 mb-4">
+                        <div>
+                            <h5 className="font-black text-xl">{req.title}</h5>
+                            <p className="text-xs font-bold text-gray-400 uppercase">{req.requested_by} • {req.type}</p>
+                        </div>
+                        <div className="flex gap-4">
+                            <select value={req.assigned_to} onChange={(e) => onUpdate('requests', req.id, {assigned_to: e.target.value})} className="input-field py-2 text-xs">
+                                {['Ikke tildelt', 'Henrik', 'Marthe', 'Karolina'].map(m => <option key={m}>{m}</option>)}
+                            </select>
+                            <button onClick={() => onDecide(req.id, 'Completed')} className="bg-emerald-500 text-white px-6 py-2 rounded-xl font-black text-[10px]">LØS</button>
+                            <button onClick={() => onDecide(req.id, 'Rejected')} className="bg-red-500 text-white px-6 py-2 rounded-xl font-black text-[10px]">AVSLÅ</button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        );
+
         const LoginScreen = ({ onLogin }) => {
+            const [mode, setMode] = useState('login');
             const [email, setEmail] = useState('');
             const [pass, setPass] = useState('');
-            const handleLogin = async (e) => {
+            const [pass2, setPass2] = useState('');
+
+            const handleAuth = async (e) => {
                 e.preventDefault();
-                const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: pass });
-                if (error) alert("Feil pålogging"); else onLogin(data.user);
+                if (mode === 'register' && pass !== pass2) return alert("Passordene samsvarer ikke!");
+                const { data, error } = mode === 'login' 
+                    ? await supabaseClient.auth.signInWithPassword({ email, password: pass })
+                    : await supabaseClient.auth.signUp({ email, password: pass });
+                if (error) alert(error.message); else onLogin(data.user);
             };
+
             return (
                 <div className="flex h-screen w-screen overflow-hidden bg-white">
                     <div className="w-[450px] p-16 flex flex-col justify-center">
-                        <h1 className="text-4xl font-black italic mb-10">RCMP</h1>
-                        <form onSubmit={handleLogin} className="space-y-6">
+                        <div className="mb-16">
+                            <h1 className="text-4xl font-black italic text-slate-900 leading-none">RCMP</h1>
+                            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mt-1">Experience Design Portal</p>
+                        </div>
+                        <div className="flex gap-6 mb-10">
+                            <button onClick={() => setMode('login')} className={`text-xs font-black uppercase tracking-widest pb-2 border-b-2 ${mode === 'login' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-300'}`}>Logg inn</button>
+                            <button onClick={() => setMode('register')} className={`text-xs font-black uppercase tracking-widest pb-2 border-b-2 ${mode === 'register' ? 'border-slate-900 text-slate-900' : 'border-transparent text-slate-300'}`}>Lag bruker</button>
+                        </div>
+                        <form onSubmit={handleAuth} className="space-y-6">
                             <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="input-field" placeholder="E-post" required />
                             <input type="password" value={pass} onChange={e => setPass(e.target.value)} className="input-field" placeholder="Passord" required />
-                            <button className="bg-[#0058AB] text-white p-5 rounded-2xl font-black uppercase tracking-widest btn-clickable w-full">Logg inn ➜</button>
+                            {mode === 'register' && <input type="password" value={pass2} onChange={e => setPass2(e.target.value)} className="input-field" placeholder="Gjenta passord" required />}
+                            <button className="bg-[#0058AB] text-white p-5 rounded-2xl font-black uppercase tracking-widest btn-clickable w-full shadow-lg shadow-blue-200">{mode === 'login' ? 'Logg inn ➜' : 'Opprett konto ➜'}</button>
                         </form>
                     </div>
-                    <div className="flex-1 bg-[#0058AB] flex items-center justify-center">
-                        <h2 className="text-amber-400 text-7xl font-black italic">Experience Design</h2>
+                    <div className="flex-1 hero-gradient flex items-center justify-center relative">
+                        <div className="absolute font-black text-[180px] text-white/5 select-none">RCMP</div>
+                        <div className="relative z-10 text-center">
+                            <h2 className="text-amber-400 text-7xl font-black italic italic leading-none drop-shadow-2xl">Experience Design</h2>
+                            <p className="text-white font-bold tracking-[0.5em] uppercase mt-4 opacity-60">Norway Hub</p>
+                        </div>
                     </div>
                 </div>
             );
