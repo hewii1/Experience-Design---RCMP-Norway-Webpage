@@ -12,17 +12,13 @@
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Plus Jakarta Sans', sans-serif; letter-spacing: -0.025em; background-color: #fcfcfd; color: #101828; }
-        .sidebar-item { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); border-radius: 10px; margin: 2px 12px; }
+        .sidebar-item { transition: all 0.2s ease; border-radius: 12px; margin: 2px 12px; }
         .sidebar-active { background-color: #f5f8ff; color: #0058AB !important; font-weight: 700; box-shadow: inset 4px 0 0 -1px #0058AB; }
-        .glass-card { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(235, 238, 242, 1); box-shadow: 0 4px 12px -2px rgba(16, 24, 40, 0.04); overflow: hidden; }
-        .btn-animate { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
-        .btn-animate:active { transform: scale(0.95); }
-        .image-overlay { background: linear-gradient(to bottom, rgba(255,255,255,0.4) 0%, rgba(255,255,255,1) 90%); }
-        
-        /* Fikset zoom-effekt */
-        .zoom-container { overflow: hidden; width: 100%; height: 100%; }
-        .zoom-image { transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1); }
-        .group:hover .zoom-image { transform: scale(1.08); }
+        .glass-card { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid #f0f2f5; shadow: 0 4px 15px rgba(0,0,0,0.02); }
+        .zoom-container { overflow: hidden; }
+        .zoom-image { transition: transform 0.6s ease; }
+        .group:hover .zoom-image { transform: scale(1.05); }
+        select, input, textarea { border: 1px solid #f0f2f5 !important; }
     </style>
 </head>
 <body>
@@ -36,13 +32,7 @@
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         
         const TEAM = ['Ikke tildelt', 'Henrik', 'Marthe', 'Karolina'];
-
-        const Logo = () => (
-            <div className="px-10 mb-8 select-none">
-                <h1 className="text-4xl font-black tracking-tighter italic text-gray-900 leading-none">RCMP</h1>
-                <p className="text-[9px] font-black uppercase tracking-[0.3em] text-gray-400 mt-1.5">Experience Design</p>
-            </div>
-        );
+        const REPORTS = ['Salgsoversikt Retail', 'Lagerbeholdning Global', 'Kundetilfredshet (CSAT)', 'Logistikk Dashboard', 'Annet'];
 
         const App = () => {
             const [user, setUser] = useState(null);
@@ -51,7 +41,6 @@
             const [requests, setRequests] = useState([]);
             const [insights, setInsights] = useState([]);
             const [systems, setSystems] = useState([]);
-            const [loading, setLoading] = useState(false);
 
             useEffect(() => {
                 supabaseClient.auth.getSession().then(({ data: { session } }) => setUser(session?.user ?? null));
@@ -59,95 +48,84 @@
             }, []);
 
             const fetchData = async () => {
-                const reqs = await supabaseClient.from('requests').select('*').order('created_at', { ascending: false });
-                const ins = await supabaseClient.from('insights').select('*').order('id', { ascending: true });
-                const sys = await supabaseClient.from('system_status').select('*').order('id', { ascending: true });
-                setRequests(reqs.data || []);
-                setInsights(ins.data || []);
-                setSystems(sys.data || []);
+                const { data: reqs } = await supabaseClient.from('requests').select('*').order('created_at', { ascending: false });
+                const { data: ins } = await supabaseClient.from('insights').select('*').order('id', { ascending: true });
+                const { data: sys } = await supabaseClient.from('system_status').select('*').order('id', { ascending: true });
+                setRequests(reqs || []);
+                setInsights(ins || []);
+                setSystems(sys || []);
             };
 
-            const updateInsight = async (id, field, val) => {
-                await supabaseClient.from('insights').update({ [field]: val }).eq('id', id);
+            const updateRequest = async (id, updates) => {
+                await supabaseClient.from('requests').update(updates).eq('id', id);
                 fetchData();
             };
 
-            const updateRequest = async (id, field, val) => {
-                await supabaseClient.from('requests').update({ [field]: val }).eq('id', id);
-                fetchData();
-            };
-
-            const updateSystem = async (id, field, val) => {
-                await supabaseClient.from('system_status').update({ [field]: val }).eq('id', id);
-                fetchData();
-            };
-
-            const handleSubmitRequest = async (e, type) => {
+            const handleAccessRequest = async (e) => {
                 e.preventDefault();
-                setLoading(true);
                 const formData = new FormData(e.target);
-                const { error } = await supabaseClient.from('requests').insert([{
-                    title: formData.get('title'),
-                    description: formData.get('description'),
-                    type: type,
+                const report = formData.get('report');
+                const other = formData.get('other_report');
+                await supabaseClient.from('requests').insert([{
+                    title: `Tilgang: ${report === 'Annet' ? other : report}`,
+                    description: formData.get('reason'),
+                    type: 'TILGANG',
+                    report_name: report === 'Annet' ? other : report,
                     requested_by: user.email,
-                    status: 'Ny',
+                    status: 'Open',
                     assigned_to: 'Ikke tildelt'
                 }]);
-                setLoading(false);
-                if (!error) setView('dashboard');
+                setView('dashboard');
             };
 
             const isAdmin = user && ['henrik.h.wiik@gmail.com', 'marthe.epost@ingka.ikea.com', 'karolina.epost@ingka.ikea.com'].includes(user.email);
 
-            if (!user) return <div className="p-20 text-center font-bold tracking-widest text-gray-300 uppercase italic">RCMP...</div>;
-
-            const activeInsights = insights.filter(i => i.is_active);
+            if (!user) return <div className="p-20 text-center font-bold text-gray-300 italic">RCMP...</div>;
 
             return (
                 <div className="flex min-h-screen">
                     {/* SIDEBAR */}
                     <aside className="w-72 bg-white border-r border-gray-100 flex flex-col fixed h-full z-20 pt-12">
-                        <Logo />
+                        <div className="px-10 mb-8 select-none">
+                            <h1 className="text-4xl font-black italic text-gray-900 leading-none">RCMP</h1>
+                            <p className="text-[9px] font-black uppercase tracking-[0.3em] text-gray-400 mt-1.5">Experience Design</p>
+                        </div>
                         <nav className="flex-1 overflow-y-auto">
-                            <button onClick={() => setView('dashboard')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'dashboard' ? 'sidebar-active' : 'text-gray-500 hover:text-gray-900'}`}>🏠 Min side</button>
+                            <button onClick={() => setView('dashboard')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'dashboard' ? 'sidebar-active' : 'text-gray-500'}`}>🏠 Dashboard</button>
                             <div className="my-6 mx-8 border-t border-gray-100"></div>
-                            <p className="px-10 text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Hovedmeny</p>
-                            <button onClick={() => setView('systems')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'systems' ? 'sidebar-active' : 'text-gray-500 hover:text-gray-900'}`}>🛰️ Live Operations</button>
-                            <button onClick={() => setView('insights')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'insights' ? 'sidebar-active' : 'text-gray-500 hover:text-gray-900'}`}>💡 Insight Engine</button>
-                            <button onClick={() => setView('kb')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'kb' ? 'sidebar-active' : 'text-gray-500 hover:text-gray-900'}`}>📚 Knowledge Base</button>
-                            <div className="my-6 mx-8 border-t border-gray-50"></div>
-                            <button onClick={() => setView('new')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'new' ? 'sidebar-active' : 'text-gray-500 hover:text-gray-900'}`}>✨ Ny forespørsel</button>
-                            <button onClick={() => setView('error')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'error' ? 'sidebar-active' : 'text-gray-500 hover:text-gray-900'}`}>⚠️ Rapporter feil</button>
+                            <button onClick={() => setView('systems')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'systems' ? 'sidebar-active' : 'text-gray-500'}`}>🛰️ Live Ops</button>
+                            <button onClick={() => setView('insights')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'insights' ? 'sidebar-active' : 'text-gray-500'}`}>💡 Insight Engine</button>
+                            <button onClick={() => setView('access')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'access' ? 'sidebar-active' : 'text-gray-500'}`}>🔑 Be om tilgang</button>
+                            <button onClick={() => setView('new')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'new' ? 'sidebar-active' : 'text-gray-500'}`}>✨ Ny forespørsel</button>
                             {isAdmin && (
-                                <div className="mt-8 pt-8 border-t border-gray-50">
-                                    <button onClick={() => setView('admin')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-bold sidebar-item ${view === 'admin' ? 'sidebar-active' : 'text-red-400 hover:text-red-500'}`}>🛡️ Control Center</button>
+                                <div className="mt-8 pt-8 border-t border-gray-100">
+                                    <button onClick={() => setView('admin')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-bold sidebar-item ${view === 'admin' ? 'sidebar-active' : 'text-red-400'}`}>🛡️ Control Center</button>
                                 </div>
                             )}
                         </nav>
-                        <div className="p-8 border-t border-gray-50">
-                            <button onClick={() => supabaseClient.auth.signOut()} className="text-[10px] font-extrabold text-gray-400 uppercase tracking-widest hover:text-red-500 transition-colors w-full">Logg ut</button>
-                        </div>
                     </aside>
 
                     {/* MAIN */}
-                    <main className="flex-1 ml-72 p-16">
+                    <main className="flex-1 ml-72 p-16 bg-[#fcfcfd]">
                         <div className="max-w-5xl mx-auto">
                             
                             {/* VIEW: DASHBOARD */}
                             {view === 'dashboard' && (
-                                <div className="space-y-12 animate-in fade-in duration-500">
-                                    <h2 className="text-5xl font-extrabold tracking-tight text-gray-900">Min side</h2>
-                                    <div className="grid grid-cols-1 gap-4">
+                                <div className="space-y-8 animate-in fade-in">
+                                    <h2 className="text-4xl font-extrabold text-gray-900">Mine saker</h2>
+                                    <div className="grid gap-4">
                                         {requests.filter(r => r.requested_by === user.email).map(req => (
-                                            <div key={req.id} className="glass-card p-8 rounded-[2.5rem] flex justify-between items-center group hover:border-gray-300 transition-all">
+                                            <div key={req.id} className="glass-card p-8 rounded-[2rem] flex justify-between items-center">
                                                 <div>
-                                                    <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${req.type === 'FEIL' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>{req.type}</span>
-                                                    <h3 className="text-2xl font-black mt-3 text-gray-900">{req.title}</h3>
-                                                    <p className="text-sm text-gray-400 font-medium italic">Ansvar: {req.assigned_to}</p>
+                                                    <div className="flex gap-2 items-center mb-2">
+                                                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest ${req.type === 'TILGANG' ? 'bg-purple-50 text-purple-600' : 'bg-blue-50 text-blue-600'}`}>{req.type}</span>
+                                                        <span className="text-[10px] text-gray-400 font-bold italic">ID: #{req.id}</span>
+                                                    </div>
+                                                    <h3 className="text-xl font-black text-gray-900">{req.title}</h3>
+                                                    <p className="text-sm text-gray-400 mt-1">Ansvarlig: {req.assigned_to}</p>
                                                 </div>
                                                 <div className="text-right">
-                                                    <span className="bg-gray-900 text-white px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest block">{req.status}</span>
+                                                    <div className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${req.status === 'Open' ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-500'}`}>{req.status}</div>
                                                 </div>
                                             </div>
                                         ))}
@@ -155,153 +133,122 @@
                                 </div>
                             )}
 
-                            {/* VIEW: LIVE OPERATIONS */}
+                            {/* VIEW: LIVE OPS */}
                             {view === 'systems' && (
-                                <div className="space-y-12 animate-in fade-in duration-500">
-                                    <h2 className="text-5xl font-extrabold tracking-tight text-gray-900">Live Operations</h2>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-8 animate-in fade-in">
+                                    <h2 className="text-4xl font-extrabold text-gray-900">Live Operations</h2>
+                                    <div className="grid gap-6">
                                         {systems.map(s => (
-                                            <div key={s.id} className="glass-card p-8 rounded-[2.5rem] flex items-center justify-between">
-                                                <div className="flex items-center gap-6">
-                                                    <div className={`w-4 h-4 rounded-full shadow-lg ${s.status === 'online' ? 'bg-green-500' : s.status === 'degraded' ? 'bg-amber-500' : 'bg-red-500'}`}></div>
-                                                    <div>
-                                                        <h4 className="font-black text-xl text-gray-900">{s.system_name}</h4>
-                                                        <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">Uptime: {s.uptime}</p>
+                                            <div key={s.id} className="glass-card p-8 rounded-[2.5rem] flex flex-col gap-4">
+                                                <div className="flex justify-between items-start">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={`w-3 h-3 rounded-full ${s.status === 'online' ? 'bg-green-500' : 'bg-amber-500 animate-pulse'}`}></div>
+                                                        <h4 className="font-black text-2xl">{s.system_name}</h4>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Sist oppdatert</p>
+                                                        <p className="text-sm font-bold text-gray-900">{new Date(s.updated_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
                                                     </div>
                                                 </div>
-                                                <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Stable</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* VIEW: INSIGHT ENGINE */}
-                            {view === 'insights' && (
-                                <div className="space-y-12 animate-in fade-in duration-500">
-                                    <h2 className="text-5xl font-extrabold tracking-tight text-gray-900">Insight Engine</h2>
-                                    <div className={`grid gap-8 ${
-                                        activeInsights.length <= 2 ? 'grid-cols-1 md:grid-cols-2' : 
-                                        activeInsights.length === 3 ? 'grid-cols-1 md:grid-cols-3' : 
-                                        activeInsights.length === 4 ? 'grid-cols-2' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
-                                    }`}>
-                                        {activeInsights.map((item) => (
-                                            <div key={item.id} className="glass-card rounded-[3.5rem] flex flex-col justify-between min-h-[420px] relative group hover:shadow-2xl transition-all duration-500">
-                                                {item.image_url && (
-                                                    <div className="absolute top-0 left-0 w-full h-56 z-0 zoom-container">
-                                                        <img src={item.image_url} className="w-full h-full object-cover zoom-image" alt="" />
-                                                        <div className="absolute inset-0 image-overlay"></div>
+                                                {s.status_message && (
+                                                    <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                                                        <p className="text-sm font-medium text-gray-600 italic">"{s.status_message}"</p>
                                                     </div>
                                                 )}
-                                                <div className="p-10 relative z-10 pt-40">
-                                                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-600/60">{item.tag}</span>
-                                                    <h3 className="text-2xl font-black mt-4 mb-4 text-gray-900 leading-tight">{item.title}</h3>
-                                                    <p className="text-gray-500 font-medium text-sm leading-relaxed line-clamp-3">{item.description}</p>
-                                                </div>
-                                                <div className="p-10 pt-0 relative z-10">
-                                                    <a href={item.link_url || "#"} target="_blank" rel="noopener noreferrer">
-                                                        <button style={{backgroundColor: item.color_hex}} className="w-full text-white py-4 rounded-[1.5rem] font-bold text-xs uppercase tracking-[0.15em] btn-animate shadow-lg hover:brightness-110">
-                                                            {item.button_text} ➜
-                                                        </button>
-                                                    </a>
-                                                </div>
                                             </div>
                                         ))}
                                     </div>
                                 </div>
                             )}
 
-                            {/* VIEW: NY FORESPØRSEL / FEIL */}
-                            {(view === 'new' || view === 'error') && (
-                                <div className="space-y-12 animate-in fade-in duration-500">
-                                    <h2 className="text-5xl font-extrabold tracking-tight text-gray-900">{view === 'new' ? 'Ny forespørsel' : 'Rapporter feil'}</h2>
-                                    <div className="glass-card p-12 rounded-[3.5rem] max-w-2xl shadow-xl">
-                                        <form onSubmit={(e) => handleSubmitRequest(e, view === 'new' ? 'INNSINKT' : 'FEIL')} className="space-y-8">
-                                            <div className="space-y-2">
-                                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-4">Overskrift</label>
-                                                <input required name="title" className="w-full p-6 bg-gray-50 rounded-3xl text-lg font-bold outline-none focus:ring-4 ring-blue-50 transition-all border-none" placeholder={view === 'new' ? "Hva trenger du innsikt i?" : "Hva er feil?"} />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-4">Beskrivelse</label>
-                                                <textarea required name="description" className="w-full p-6 bg-gray-50 rounded-3xl text-md font-medium outline-none focus:ring-4 ring-blue-50 transition-all border-none h-40" placeholder="Utdyp forespørselen her..."></textarea>
-                                            </div>
-                                            <button disabled={loading} type="submit" className="w-full bg-gray-900 text-white py-6 rounded-3xl font-black uppercase tracking-widest btn-animate hover:bg-black">
-                                                {loading ? 'Sender...' : 'Send inn forespørsel ➜'}
-                                            </button>
-                                        </form>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* VIEW: KNOWLEDGE BASE */}
-                            {view === 'kb' && (
-                                <div className="space-y-12 animate-in fade-in duration-500">
-                                    <h2 className="text-5xl font-extrabold tracking-tight text-gray-900">Knowledge Base</h2>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                        {['Design Manual', 'KPI Ordbok', 'Onboarding'].map((title, i) => (
-                                            <div key={title} className="glass-card p-8 rounded-[2.5rem] hover:scale-[1.02] transition-all cursor-pointer">
-                                                <div className="text-3xl mb-4">{['📖', '📊', '🚀'][i]}</div>
-                                                <h4 className="font-black text-xl text-gray-900 mb-2">{title}</h4>
-                                                <p className="text-sm text-gray-500 font-medium italic">Klikk for å åpne ressursen</p>
-                                            </div>
-                                        ))}
-                                    </div>
+                            {/* VIEW: ACCESS REQUEST */}
+                            {view === 'access' && (
+                                <div className="max-w-xl animate-in fade-in">
+                                    <h2 className="text-4xl font-extrabold mb-8">Be om tilgang</h2>
+                                    <form onSubmit={handleAccessRequest} className="glass-card p-10 rounded-[3rem] space-y-6">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase text-gray-400 ml-4">Velg Rapport / System</label>
+                                            <select name="report" className="w-full p-5 bg-gray-50 rounded-2xl font-bold outline-none" onChange={(e) => setAdminSubView(e.target.value)}>
+                                                {REPORTS.map(r => <option key={r} value={r}>{r}</option>)}
+                                            </select>
+                                        </div>
+                                        {adminSubView === 'Annet' && (
+                                            <input name="other_report" required className="w-full p-5 bg-gray-50 rounded-2xl font-bold outline-none" placeholder="Hva trenger du tilgang til?" />
+                                        )}
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase text-gray-400 ml-4">Hvorfor trenger du tilgang?</label>
+                                            <textarea name="reason" required className="w-full p-5 bg-gray-50 rounded-2xl h-32 outline-none" placeholder="Beskriv behovet ditt..."></textarea>
+                                        </div>
+                                        <button className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-700 transition-all">Send forespørsel</button>
+                                    </form>
                                 </div>
                             )}
 
                             {/* VIEW: ADMIN */}
                             {view === 'admin' && (
-                                <div className="space-y-10 animate-in fade-in duration-500">
-                                    <div className="flex gap-4 p-1.5 bg-gray-100 rounded-2xl w-fit">
-                                        <button onClick={() => setAdminSubView('tasks')} className={`px-6 py-2.5 rounded-xl text-xs font-bold transition-all ${adminSubView === 'tasks' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>Saker</button>
-                                        <button onClick={() => setAdminSubView('insights')} className={`px-6 py-2.5 rounded-xl text-xs font-bold transition-all ${adminSubView === 'insights' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>Insight Engine</button>
-                                        <button onClick={() => setAdminSubView('live')} className={`px-6 py-2.5 rounded-xl text-xs font-bold transition-all ${adminSubView === 'live' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>Live Ops</button>
+                                <div className="space-y-10 animate-in fade-in">
+                                    <div className="flex gap-4 p-1.5 bg-gray-100 rounded-2xl w-fit font-bold text-xs uppercase">
+                                        <button onClick={() => setAdminSubView('tasks')} className={`px-6 py-2 rounded-xl ${adminSubView === 'tasks' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}>Åpne Saker</button>
+                                        <button onClick={() => setAdminSubView('log')} className={`px-6 py-2 rounded-xl ${adminSubView === 'log' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}>Approval Log</button>
+                                        <button onClick={() => setAdminSubView('live')} className={`px-6 py-2 rounded-xl ${adminSubView === 'live' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}>Live Ops</button>
                                     </div>
 
-                                    {adminSubView === 'insights' && (
-                                        <div className="grid grid-cols-1 gap-8">
-                                            {insights.map(item => (
-                                                <div key={item.id} className="glass-card p-10 rounded-[2.5rem] space-y-6">
-                                                    <div className="flex justify-between items-center border-b border-gray-100 pb-4">
-                                                        <h4 className="font-black text-lg text-blue-600 uppercase tracking-tighter">Modul #{item.id}</h4>
-                                                        <label className="flex items-center gap-3 cursor-pointer">
-                                                            <span className="text-[10px] font-black uppercase text-gray-400">Aktiv:</span>
-                                                            <input type="checkbox" className="w-6 h-6 accent-blue-600" checked={item.is_active} onChange={(e) => updateInsight(item.id, 'is_active', e.target.checked)} />
-                                                        </label>
+                                    {adminSubView === 'tasks' && (
+                                        <div className="space-y-8">
+                                            {/* SEKSJON: IKKE TILDELT */}
+                                            <div className="space-y-4">
+                                                <h4 className="text-[10px] font-black text-red-400 uppercase tracking-[0.2em] ml-2">Ubehandlede Saker</h4>
+                                                {requests.filter(r => r.status === 'Open' && r.assigned_to === 'Ikke tildelt').map(req => (
+                                                    <div key={req.id} className="glass-card p-6 rounded-[2rem] border-l-4 border-l-red-400 flex justify-between items-center bg-red-50/10">
+                                                        <div>
+                                                            <h5 className="font-black text-lg">{req.title}</h5>
+                                                            <p className="text-xs text-gray-500">{req.requested_by} • {req.type}</p>
+                                                        </div>
+                                                        <select onChange={(e) => updateRequest(req.id, {assigned_to: e.target.value})} className="bg-white p-3 rounded-xl text-[10px] font-black uppercase shadow-sm outline-none">
+                                                            {TEAM.map(t => <option key={t}>{t}</option>)}
+                                                        </select>
                                                     </div>
-                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                        <input defaultValue={item.title} onBlur={(e) => updateInsight(item.id, 'title', e.target.value)} className="p-4 bg-gray-50 rounded-2xl text-sm font-bold outline-none" placeholder="Tittel" />
-                                                        <input defaultValue={item.tag} onBlur={(e) => updateInsight(item.id, 'tag', e.target.value)} className="p-4 bg-gray-50 rounded-2xl text-sm font-bold outline-none" placeholder="Tag" />
-                                                        <textarea defaultValue={item.description} onBlur={(e) => updateInsight(item.id, 'description', e.target.value)} className="md:col-span-2 p-4 bg-gray-50 rounded-2xl text-sm h-24 outline-none" placeholder="Beskrivelse" />
-                                                        <input defaultValue={item.image_url} onBlur={(e) => updateInsight(item.id, 'image_url', e.target.value)} className="p-4 bg-gray-50 rounded-2xl text-sm outline-none" placeholder="Bilde URL" />
-                                                        <input defaultValue={item.link_url} onBlur={(e) => updateInsight(item.id, 'link_url', e.target.value)} className="p-4 bg-blue-50 rounded-2xl text-sm font-bold outline-none" placeholder="Link URL" />
-                                                        <input defaultValue={item.button_text} onBlur={(e) => updateInsight(item.id, 'button_text', e.target.value)} className="p-4 bg-gray-50 rounded-2xl text-sm font-bold outline-none" placeholder="Knappetekst" />
-                                                        <input type="color" defaultValue={item.color_hex} onChange={(e) => updateInsight(item.id, 'color_hex', e.target.value)} className="w-full h-[52px] bg-gray-50 rounded-2xl border-none p-1" />
+                                                ))}
+                                            </div>
+
+                                            {/* SEKSJON: ANDRE ÅPNE */}
+                                            <div className="space-y-4 pt-4 border-t border-gray-100">
+                                                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-2">Under arbeid</h4>
+                                                {requests.filter(r => r.status === 'Open' && r.assigned_to !== 'Ikke tildelt').map(req => (
+                                                    <div key={req.id} className="glass-card p-6 rounded-[2rem] flex justify-between items-center">
+                                                        <div>
+                                                            <h5 className="font-black text-lg">{req.title}</h5>
+                                                            <p className="text-xs text-gray-500">{req.requested_by} • Ansvar: {req.assigned_to}</p>
+                                                        </div>
+                                                        <div className="flex gap-2">
+                                                            <button onClick={() => updateRequest(req.id, {status: 'Approved'})} className="bg-green-500 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase">Godkjenn</button>
+                                                            <button onClick={() => updateRequest(req.id, {status: 'Rejected'})} className="bg-red-500 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase">Avslå</button>
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            ))}
+                                                ))}
+                                            </div>
                                         </div>
                                     )}
 
-                                    {adminSubView === 'tasks' && (
-                                        <div className="glass-card rounded-[2.5rem] overflow-hidden shadow-xl">
-                                            <table className="w-full text-left">
-                                                <thead className="bg-gray-900 text-white">
+                                    {adminSubView === 'log' && (
+                                        <div className="glass-card rounded-[2.5rem] overflow-hidden">
+                                            <table className="w-full text-left border-collapse">
+                                                <thead className="bg-gray-50">
                                                     <tr>
-                                                        <th className="p-8 text-[10px] font-black uppercase tracking-[0.2em]">Sak</th>
-                                                        <th className="p-8 text-[10px] font-black uppercase tracking-[0.2em]">Bruker</th>
-                                                        <th className="p-8 text-[10px] font-black uppercase tracking-[0.2em] text-right">Ansvar</th>
+                                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-gray-400">Dato</th>
+                                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-gray-400">Bruker</th>
+                                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-gray-400">Sak</th>
+                                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-gray-400 text-right">Utfall</th>
                                                     </tr>
                                                 </thead>
-                                                <tbody className="divide-y divide-gray-100">
-                                                    {requests.map(req => (
-                                                        <tr key={req.id} className="hover:bg-gray-50 transition-colors">
-                                                            <td className="p-8 font-black text-gray-900">{req.title}</td>
-                                                            <td className="p-8 text-xs font-bold text-gray-400">{req.requested_by}</td>
-                                                            <td className="p-8 text-right">
-                                                                <select value={req.assigned_to} onChange={(e) => updateRequest(req.id, 'assigned_to', e.target.value)} className="bg-gray-100 p-3 rounded-xl text-[10px] font-black uppercase border-none outline-none ring-1 ring-gray-200">
-                                                                    {TEAM.map(t => <option key={t}>{t}</option>)}
-                                                                </select>
+                                                <tbody className="divide-y divide-gray-50">
+                                                    {requests.filter(r => r.status !== 'Open').map(req => (
+                                                        <tr key={req.id}>
+                                                            <td className="p-6 text-xs font-bold text-gray-400">{new Date(req.created_at).toLocaleDateString()}</td>
+                                                            <td className="p-6 text-xs font-bold">{req.requested_by}</td>
+                                                            <td className="p-6 font-bold">{req.title}</td>
+                                                            <td className="p-6 text-right">
+                                                                <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${req.status === 'Approved' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>{req.status}</span>
                                                             </td>
                                                         </tr>
                                                     ))}
@@ -311,22 +258,20 @@
                                     )}
 
                                     {adminSubView === 'live' && (
-                                        <div className="grid grid-cols-1 gap-6">
+                                        <div className="grid gap-6">
                                             {systems.map(s => (
-                                                <div key={s.id} className="glass-card p-8 rounded-[2.5rem] flex items-center justify-between">
-                                                    <div className="flex-1">
-                                                        <h4 className="font-black text-xl mb-4">{s.system_name}</h4>
-                                                        <div className="flex gap-4">
-                                                            <select value={s.status} onChange={(e) => updateSystem(s.id, 'status', e.target.value)} className="bg-gray-100 p-3 rounded-xl text-[10px] font-black uppercase outline-none">
-                                                                <option value="online">Online</option>
-                                                                <option value="degraded">Degraded</option>
-                                                                <option value="offline">Offline</option>
-                                                            </select>
-                                                            <input defaultValue={s.uptime} onBlur={(e) => updateSystem(s.id, 'uptime', e.target.value)} className="bg-gray-100 p-3 rounded-xl text-[10px] font-black uppercase outline-none w-24 text-center" />
-                                                        </div>
+                                                <div key={s.id} className="glass-card p-10 rounded-[3rem] space-y-6">
+                                                    <div className="flex justify-between items-center">
+                                                        <h4 className="font-black text-2xl">{s.system_name}</h4>
+                                                        <select value={s.status} onChange={(e) => supabaseClient.from('system_status').update({status: e.target.value}).eq('id', s.id).then(fetchData)} className="bg-gray-50 p-3 rounded-xl text-xs font-bold outline-none">
+                                                            <option value="online">Online</option>
+                                                            <option value="degraded">Degraded</option>
+                                                            <option value="offline">Offline</option>
+                                                        </select>
                                                     </div>
-                                                    <div className={`w-12 h-12 rounded-full flex items-center justify-center ${s.status === 'online' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}`}>
-                                                        {s.status === 'online' ? '✓' : '!'}
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Statusmelding</label>
+                                                        <input defaultValue={s.status_message} onBlur={(e) => supabaseClient.from('system_status').update({status_message: e.target.value}).eq('id', s.id).then(fetchData)} className="w-full p-4 bg-gray-50 rounded-2xl text-sm italic outline-none" placeholder="Skriv en beskjed til brukerne..." />
                                                     </div>
                                                 </div>
                                             ))}
@@ -334,6 +279,7 @@
                                     )}
                                 </div>
                             )}
+
                         </div>
                     </main>
                 </div>
