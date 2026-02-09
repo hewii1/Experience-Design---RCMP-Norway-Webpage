@@ -3,22 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RCMP | Operations Portal</title>
+    <title>RCMP | Operations Hub</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; letter-spacing: -0.02em; background-color: #f8f9fa; color: #1a1a1a; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; letter-spacing: -0.025em; background-color: #fcfcfd; color: #101828; }
         .ikea-blue { background-color: #0058AB; }
-        .sidebar-item { transition: all 0.2s ease; border-radius: 12px; margin: 0 8px; }
-        .sidebar-active { background-color: #f0f4f8; color: #0058AB !important; font-weight: 800; }
-        .card-shadow { box-shadow: 0 4px 20px rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.05); }
-        .tooltip { visibility: hidden; position: absolute; z-index: 50; background: #1a1a1a; color: white; padding: 8px 12px; border-radius: 8px; font-size: 10px; bottom: 125%; left: 50%; transform: translateX(-50%); white-space: nowrap; }
-        .has-tooltip:hover .tooltip { visibility: visible; }
-        .status-dot { width: 10px; height: 10px; border-radius: 50%; }
+        .sidebar-item { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); border-radius: 10px; margin: 2px 12px; }
+        .sidebar-active { background-color: #f5f8ff; color: #0058AB !important; font-weight: 700; box-shadow: inset 4px 0 0 -1px #0058AB; }
+        .glass-card { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(235, 238, 242, 1); box-shadow: 0 4px 12px -2px rgba(16, 24, 40, 0.04); }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; position: relative; }
+        .status-dot::after { content: ''; position: absolute; inset: -4px; border-radius: 50%; opacity: 0.3; background: inherit; animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); opacity: 0.4; } 100% { transform: scale(2.5); opacity: 0; } }
+        .btn-animate { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
+        .btn-animate:active { transform: scale(0.98); }
     </style>
 </head>
 <body>
@@ -32,14 +34,6 @@
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         
         const TEAM = ['Ikke tildelt', 'Henrik', 'Marthe', 'Karolina'];
-        const ADMINS = ['henrik.h.wiik@gmail.com', 'marthe.epost@ingka.ikea.com', 'karolina.epost@ingka.ikea.com'];
-
-        const Logo = () => (
-            <div className="select-none text-left">
-                <h1 className="font-black text-3xl tracking-tighter leading-none text-gray-900 italic">RCMP</h1>
-                <p className="font-bold text-[8px] uppercase tracking-[0.25em] mt-1.5 text-gray-400">Experience Design Portal</p>
-            </div>
-        );
 
         const App = () => {
             const [user, setUser] = useState(null);
@@ -48,7 +42,6 @@
             const [requests, setRequests] = useState([]);
             const [reports, setReports] = useState([]);
             const [insights, setInsights] = useState([]);
-            const [globalAlert, setGlobalAlert] = useState("");
 
             useEffect(() => {
                 supabaseClient.auth.getSession().then(({ data: { session } }) => setUser(session?.user ?? null));
@@ -59,21 +52,9 @@
                 const reqs = await supabaseClient.from('requests').select('*').order('created_at', { ascending: false });
                 const reps = await supabaseClient.from('reports').select('*').order('category', { ascending: true });
                 const ins = await supabaseClient.from('insights').select('*').order('id', { ascending: true });
-                const alertData = await supabaseClient.from('settings').select('value').eq('key', 'global_alert').maybeSingle();
-                
                 setRequests(reqs.data || []);
                 setReports(reps.data || []);
                 setInsights(ins.data || []);
-                setGlobalAlert(alertData?.value || "");
-            };
-
-            const updateRequest = async (id, field, val, oldVal = null) => {
-                let updateData = { [field]: val };
-                if (field === 'assigned_to' && oldVal) {
-                    updateData.reassignment_log = `Re-fordelt fra ${oldVal} den ${new Date().toLocaleDateString()}`;
-                }
-                await supabaseClient.from('requests').update(updateData).eq('id', id);
-                fetchData();
             };
 
             const updateInsight = async (id, field, val) => {
@@ -81,116 +62,99 @@
                 fetchData();
             };
 
-            const isAdmin = user && ADMINS.includes(user.email);
+            const isAdmin = user && ['henrik.h.wiik@gmail.com', 'marthe.epost@ingka.ikea.com', 'karolina.epost@ingka.ikea.com'].includes(user.email);
 
-            if (!user) return <div className="p-20 text-center font-bold">Laster...</div>;
+            if (!user) return <div className="p-20 text-center font-bold italic">RCMP.</div>;
 
             return (
                 <div className="flex min-h-screen">
                     {/* SIDEBAR */}
                     <aside className="w-72 bg-white border-r border-gray-100 flex flex-col fixed h-full z-20">
-                        <div className="p-10 mb-4"><Logo /></div>
-                        <nav className="flex-1 space-y-1">
-                            <button onClick={() => setView('dashboard')} className={`w-[calc(100%-16px)] flex items-center gap-3 px-6 py-4 text-sm font-bold sidebar-item ${view === 'dashboard' ? 'sidebar-active' : 'text-gray-400'}`}>📊 Min side</button>
-                            <div className="h-px bg-gray-50 mx-8 my-4"></div>
-                            <button onClick={() => setView('systems')} className={`w-[calc(100%-16px)] flex items-center gap-3 px-6 py-4 text-sm font-bold sidebar-item ${view === 'systems' ? 'sidebar-active' : 'text-gray-400'}`}>🛰️ Live Operations</button>
-                            <button onClick={() => setView('insights')} className={`w-[calc(100%-16px)] flex items-center gap-3 px-6 py-4 text-sm font-bold sidebar-item ${view === 'insights' ? 'sidebar-active' : 'text-gray-400'}`}>💡 Insight Engine</button>
-                            <button onClick={() => setView('kb')} className={`w-[calc(100%-16px)] flex items-center gap-3 px-6 py-4 text-sm font-bold sidebar-item ${view === 'kb' ? 'sidebar-active' : 'text-gray-400'}`}>📚 Knowledge Base</button>
-                            <button onClick={() => setView('new')} className={`w-[calc(100%-16px)] flex items-center gap-3 px-6 py-4 text-sm font-bold sidebar-item ${view === 'new' ? 'sidebar-active' : 'text-gray-400'}`}>✨ Ny forespørsel</button>
+                        <div className="p-10 mb-2">
+                            <h1 className="text-2xl font-black tracking-tighter italic text-gray-900">RCMP.</h1>
+                            <div className="h-1 w-8 ikea-blue mt-1"></div>
+                        </div>
+
+                        <nav className="flex-1">
+                            <button onClick={() => setView('dashboard')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'dashboard' ? 'sidebar-active' : 'text-gray-500 hover:text-gray-900'}`}>🏠 Min side</button>
+                            <div className="my-6 mx-8 border-t border-gray-100"></div>
+                            <p className="px-10 text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Hovedmeny</p>
+                            <button onClick={() => setView('systems')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'systems' ? 'sidebar-active' : 'text-gray-500 hover:text-gray-900'}`}>🛰️ Live Operations</button>
+                            <button onClick={() => setView('insights')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'insights' ? 'sidebar-active' : 'text-gray-500 hover:text-gray-900'}`}>💡 Insight Engine</button>
+                            <button onClick={() => setView('kb')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'kb' ? 'sidebar-active' : 'text-gray-500 hover:text-gray-900'}`}>📚 Knowledge Base</button>
+                            <div className="my-6 mx-8 border-t border-gray-50"></div>
+                            <button onClick={() => setView('new')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'new' ? 'sidebar-active' : 'text-gray-500 hover:text-gray-900'}`}>✨ Ny forespørsel</button>
                             {isAdmin && (
                                 <div className="mt-8 pt-8 border-t border-gray-50">
-                                    <button onClick={() => setView('admin')} className={`w-full flex items-center gap-3 px-6 py-4 text-sm font-bold sidebar-item ${view === 'admin' ? 'sidebar-active' : 'text-red-400'}`}>🛡️ Control Center</button>
+                                    <button onClick={() => setView('admin')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-bold sidebar-item ${view === 'admin' ? 'sidebar-active' : 'text-red-400 hover:text-red-500'}`}>🛡️ Control Center</button>
                                 </div>
                             )}
                         </nav>
-                        <div className="p-8 border-t border-gray-50 text-center">
-                            <button onClick={() => supabaseClient.auth.signOut()} className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Logg ut</button>
-                        </div>
                     </aside>
 
                     {/* MAIN CONTENT */}
                     <main className="flex-1 ml-72 p-16">
-                        <div className="max-w-4xl mx-auto">
+                        <div className="max-w-5xl mx-auto">
                             
-                            {/* MIN SIDE */}
+                            {/* VIEW: DASHBOARD */}
                             {view === 'dashboard' && (
-                                <div className="space-y-6">
-                                    <h2 className="text-4xl font-black tracking-tighter text-gray-900 mb-10">Min side</h2>
-                                    {requests.filter(r => r.requested_by === user.email).map(req => (
-                                        <div key={req.id} className="p-8 rounded-3xl card-shadow bg-white flex justify-between items-center border border-gray-50">
-                                            <div>
-                                                <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-blue-50 text-blue-500">{req.type}</span>
-                                                <h3 className="text-xl font-bold mt-2">{req.title}</h3>
-                                                <p className="text-gray-400 text-[10px]">Behandles av: <span className="text-gray-900 font-bold">{req.assigned_to}</span></p>
-                                            </div>
-                                            <span className="bg-gray-900 text-white px-5 py-2 rounded-lg text-[9px] font-black uppercase">{req.status}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {/* INSIGHT ENGINE */}
-                            {view === 'insights' && (
-                                <div className="space-y-10">
-                                    <h2 className="text-4xl font-black tracking-tighter text-gray-900 mb-10">Insight Engine</h2>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        {insights.map(item => (
-                                            <div key={item.id} className={`p-10 rounded-[2.5rem] card-shadow bg-white border-t-4 ${item.color === 'blue' ? 'border-t-blue-600' : 'border-t-gray-900'}`}>
-                                                <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">{item.tag}</span>
-                                                <h3 className="text-2xl font-black mt-4 mb-3">{item.title}</h3>
-                                                <p className="text-gray-500 text-sm mb-8 leading-relaxed">{item.description}</p>
-                                                <button className="ikea-blue text-white px-6 py-3 rounded-xl font-black uppercase text-[10px]">{item.button_text}</button>
+                                <div className="space-y-12">
+                                    <h2 className="text-5xl font-extrabold tracking-tight text-gray-900">Min side</h2>
+                                    <div className="grid grid-cols-1 gap-4">
+                                        {requests.filter(r => r.requested_by === user.email).map(req => (
+                                            <div key={req.id} className="glass-card p-8 rounded-[2.5rem] flex justify-between items-center group">
+                                                <div>
+                                                    <span className="bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">{req.type}</span>
+                                                    <h3 className="text-2xl font-black mt-3 text-gray-900">{req.title}</h3>
+                                                    <p className="text-sm text-gray-400 font-medium">Saksbehandler: {req.assigned_to}</p>
+                                                </div>
+                                                <span className="bg-gray-900 text-white px-8 py-4 rounded-2xl text-[10px] font-black uppercase">{req.status}</span>
                                             </div>
                                         ))}
                                     </div>
                                 </div>
                             )}
 
-                            {/* ADMIN CONTROL CENTER */}
+                            {/* VIEW: INSIGHT ENGINE (DINE BOBLER) */}
+                            {view === 'insights' && (
+                                <div className="space-y-12">
+                                    <h2 className="text-5xl font-extrabold tracking-tight text-gray-900">Insight Engine</h2>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        {insights.map(item => (
+                                            <div key={item.id} className="glass-card p-10 rounded-[3rem] flex flex-col justify-between min-h-[350px]">
+                                                <div>
+                                                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">{item.tag}</span>
+                                                    <h3 className="text-3xl font-black mt-4 mb-4 text-gray-900">{item.title}</h3>
+                                                    <p className="text-gray-500 font-medium leading-relaxed">{item.description}</p>
+                                                </div>
+                                                <button style={{backgroundColor: item.color_hex}} className="w-fit text-white px-8 py-4 rounded-2xl font-bold text-sm btn-animate self-start">
+                                                    {item.button_text} ➜
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* VIEW: ADMIN CONTROL CENTER */}
                             {view === 'admin' && (
                                 <div className="space-y-10">
-                                    <div className="flex gap-4 mb-10">
-                                        {['tasks', 'status', 'insights'].map(sub => (
-                                            <button key={sub} onClick={() => setAdminSubView(sub)} className={`px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest ${adminSubView === sub ? 'ikea-blue text-white' : 'bg-white text-gray-400'}`}>{sub}</button>
-                                        ))}
+                                    <div className="flex gap-4 p-1 bg-gray-100 rounded-2xl w-fit">
+                                        <button onClick={() => setAdminSubView('tasks')} className={`px-6 py-2 rounded-xl text-xs font-bold ${adminSubView === 'tasks' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>Oppgaver</button>
+                                        <button onClick={() => setAdminSubView('insights')} className={`px-6 py-2 rounded-xl text-xs font-bold ${adminSubView === 'insights' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>Insight Engine</button>
                                     </div>
 
-                                    {adminSubView === 'tasks' && (
-                                        <div className="bg-white rounded-[2rem] card-shadow overflow-hidden">
-                                            <table className="w-full text-left">
-                                                <tbody className="divide-y divide-gray-50">
-                                                    {requests.map(req => (
-                                                        <tr key={req.id}>
-                                                            <td className="p-6"><p className="font-bold">{req.title}</p></td>
-                                                            <td className="p-6">
-                                                                <div className="relative inline-block has-tooltip">
-                                                                    <select value={req.assigned_to} onChange={(e) => updateRequest(req.id, 'assigned_to', e.target.value, req.assigned_to)} className="bg-gray-50 rounded-lg px-3 py-1.5 text-[10px] font-black uppercase border-none">
-                                                                        {TEAM.map(t => <option key={t}>{t}</option>)}
-                                                                    </select>
-                                                                    {req.reassignment_log && <div className="tooltip">{req.reassignment_log}</div>}
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    )}
-
                                     {adminSubView === 'insights' && (
-                                        <div className="space-y-6">
+                                        <div className="grid grid-cols-1 gap-6">
                                             {insights.map(item => (
-                                                <div key={item.id} className="bg-white p-8 rounded-3xl card-shadow space-y-4">
-                                                    <h4 className="font-black text-xs uppercase text-blue-600 tracking-widest">Modul {item.id}</h4>
+                                                <div key={item.id} className="glass-card p-8 rounded-[2rem] space-y-4">
+                                                    <h4 className="font-bold text-blue-600">Rediger Boble #{item.id}</h4>
                                                     <div className="grid grid-cols-2 gap-4">
-                                                        <input defaultValue={item.title} onBlur={(e) => updateInsight(item.id, 'title', e.target.value)} className="p-3 bg-gray-50 rounded-xl text-sm font-bold outline-none" placeholder="Tittel" />
-                                                        <input defaultValue={item.tag} onBlur={(e) => updateInsight(item.id, 'tag', e.target.value)} className="p-3 bg-gray-50 rounded-xl text-sm font-bold outline-none" placeholder="Tag (f.eks SALG)" />
-                                                        <textarea defaultValue={item.description} onBlur={(e) => updateInsight(item.id, 'description', e.target.value)} className="col-span-2 p-3 bg-gray-50 rounded-xl text-sm h-20 outline-none" placeholder="Beskrivelse"></textarea>
-                                                        <input defaultValue={item.button_text} onBlur={(e) => updateInsight(item.id, 'button_text', e.target.value)} className="p-3 bg-gray-50 rounded-xl text-sm outline-none" placeholder="Knappetekst" />
-                                                        <select defaultValue={item.color} onChange={(e) => updateInsight(item.id, 'color', e.target.value)} className="p-3 bg-gray-50 rounded-xl text-sm outline-none">
-                                                            <option value="blue">IKEA Blå</option>
-                                                            <option value="black">Sort</option>
-                                                        </select>
+                                                        <input defaultValue={item.title} onBlur={(e) => updateInsight(item.id, 'title', e.target.value)} className="p-4 bg-white/50 border border-gray-100 rounded-xl outline-none focus:border-blue-300" placeholder="Tittel" />
+                                                        <input defaultValue={item.tag} onBlur={(e) => updateInsight(item.id, 'tag', e.target.value)} className="p-4 bg-white/50 border border-gray-100 rounded-xl outline-none focus:border-blue-300" placeholder="Tag" />
+                                                        <textarea defaultValue={item.description} onBlur={(e) => updateInsight(item.id, 'description', e.target.value)} className="col-span-2 p-4 bg-white/50 border border-gray-100 rounded-xl outline-none focus:border-blue-300 h-24" placeholder="Beskrivelse"></textarea>
+                                                        <input defaultValue={item.button_text} onBlur={(e) => updateInsight(item.id, 'button_text', e.target.value)} className="p-4 bg-white/50 border border-gray-100 rounded-xl outline-none focus:border-blue-300" placeholder="Knappetekst" />
+                                                        <input type="color" defaultValue={item.color_hex} onChange={(e) => updateInsight(item.id, 'color_hex', e.target.value)} className="h-full w-full bg-transparent border-none cursor-pointer" />
                                                     </div>
                                                 </div>
                                             ))}
@@ -198,7 +162,6 @@
                                     )}
                                 </div>
                             )}
-
                         </div>
                     </main>
                 </div>
