@@ -14,11 +14,12 @@
         body { font-family: 'Plus Jakarta Sans', sans-serif; letter-spacing: -0.025em; background-color: #fcfcfd; color: #101828; }
         .sidebar-item { transition: all 0.2s ease; border-radius: 12px; margin: 2px 12px; }
         .sidebar-active { background-color: #f5f8ff; color: #0058AB !important; font-weight: 700; box-shadow: inset 4px 0 0 -1px #0058AB; }
-        .glass-card { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid #f0f2f5; shadow: 0 4px 15px rgba(0,0,0,0.02); }
-        .zoom-container { overflow: hidden; }
-        .zoom-image { transition: transform 0.6s ease; }
-        .group:hover .zoom-image { transform: scale(1.05); }
-        select, input, textarea { border: 1px solid #f0f2f5 !important; }
+        .glass-card { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid #f0f2f5; }
+        .modal-overlay { background: rgba(16, 24, 40, 0.4); backdrop-filter: blur(4px); }
+        .btn-approve { background-color: #10b981; transition: all 0.2s; }
+        .btn-approve:hover { background-color: #059669; transform: translateY(-1px); }
+        .btn-reject { background-color: #ef4444; transition: all 0.2s; }
+        .btn-reject:hover { background-color: #dc2626; transform: translateY(-1px); }
     </style>
 </head>
 <body>
@@ -41,6 +42,9 @@
             const [requests, setRequests] = useState([]);
             const [insights, setInsights] = useState([]);
             const [systems, setSystems] = useState([]);
+            
+            // Modal State
+            const [activeDecision, setActiveDecision] = useState(null); // { id, status }
 
             useEffect(() => {
                 supabaseClient.auth.getSession().then(({ data: { session } }) => setUser(session?.user ?? null));
@@ -56,26 +60,33 @@
                 setSystems(sys || []);
             };
 
-            const updateRequest = async (id, updates) => {
-                await supabaseClient.from('requests').update(updates).eq('id', id);
+            const finalizeDecision = async (reason) => {
+                if (!activeDecision) return;
+                await supabaseClient.from('requests').update({ 
+                    status: activeDecision.status,
+                    admin_reason: reason,
+                    assigned_to: 'System'
+                }).eq('id', activeDecision.id);
+                
+                setActiveDecision(null);
                 fetchData();
             };
 
-            const handleAccessRequest = async (e) => {
+            const handleRequestSubmit = async (e, type) => {
                 e.preventDefault();
                 const formData = new FormData(e.target);
-                const report = formData.get('report');
-                const other = formData.get('other_report');
+                const title = type === 'TILGANG' ? `Tilgang: ${formData.get('report') === 'Annet' ? formData.get('other') : formData.get('report')}` : formData.get('title');
+                
                 await supabaseClient.from('requests').insert([{
-                    title: `Tilgang: ${report === 'Annet' ? other : report}`,
-                    description: formData.get('reason'),
-                    type: 'TILGANG',
-                    report_name: report === 'Annet' ? other : report,
+                    title: title,
+                    description: formData.get('description') || formData.get('reason'),
+                    type: type,
                     requested_by: user.email,
                     status: 'Open',
                     assigned_to: 'Ikke tildelt'
                 }]);
                 setView('dashboard');
+                fetchData();
             };
 
             const isAdmin = user && ['henrik.h.wiik@gmail.com', 'marthe.epost@ingka.ikea.com', 'karolina.epost@ingka.ikea.com'].includes(user.email);
@@ -84,13 +95,32 @@
 
             return (
                 <div className="flex min-h-screen">
+                    {/* MODAL FOR BESLUTNING */}
+                    {activeDecision && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 modal-overlay">
+                            <div className="glass-card w-full max-w-md p-10 rounded-[2.5rem] shadow-2xl animate-in zoom-in-95 duration-200">
+                                <h3 className="text-2xl font-black mb-2">
+                                    {activeDecision.status === 'Approved' ? '✅ Godkjenn forespørsel' : '❌ Avslå forespørsel'}
+                                </h3>
+                                <p className="text-sm text-gray-500 mb-6 font-medium">Legg ved en melding til brukeren om hvorfor dette ble {activeDecision.status === 'Approved' ? 'godkjent' : 'avslått'}.</p>
+                                <textarea id="modalReason" className="w-full p-5 bg-gray-50 rounded-2xl h-32 outline-none border-none mb-6 focus:ring-2 ring-blue-100" placeholder="Skriv din begrunnelse her..."></textarea>
+                                <div className="flex gap-3">
+                                    <button onClick={() => setActiveDecision(null)} className="flex-1 py-4 font-bold text-gray-400 hover:text-gray-900 transition-colors">Avbryt</button>
+                                    <button onClick={() => finalizeDecision(document.getElementById('modalReason').value)} className={`flex-[2] py-4 rounded-2xl text-white font-black uppercase tracking-widest ${activeDecision.status === 'Approved' ? 'bg-green-500' : 'bg-red-500'}`}>
+                                        Bekreft ➜
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* SIDEBAR */}
                     <aside className="w-72 bg-white border-r border-gray-100 flex flex-col fixed h-full z-20 pt-12">
                         <div className="px-10 mb-8 select-none">
                             <h1 className="text-4xl font-black italic text-gray-900 leading-none">RCMP</h1>
                             <p className="text-[9px] font-black uppercase tracking-[0.3em] text-gray-400 mt-1.5">Experience Design</p>
                         </div>
-                        <nav className="flex-1 overflow-y-auto">
+                        <nav className="flex-1">
                             <button onClick={() => setView('dashboard')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'dashboard' ? 'sidebar-active' : 'text-gray-500'}`}>🏠 Dashboard</button>
                             <div className="my-6 mx-8 border-t border-gray-100"></div>
                             <button onClick={() => setView('systems')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'systems' ? 'sidebar-active' : 'text-gray-500'}`}>🛰️ Live Ops</button>
@@ -106,37 +136,53 @@
                     </aside>
 
                     {/* MAIN */}
-                    <main className="flex-1 ml-72 p-16 bg-[#fcfcfd]">
+                    <main className="flex-1 ml-72 p-16">
                         <div className="max-w-5xl mx-auto">
                             
-                            {/* VIEW: DASHBOARD */}
+                            {/* DASHBOARD */}
                             {view === 'dashboard' && (
                                 <div className="space-y-8 animate-in fade-in">
-                                    <h2 className="text-4xl font-extrabold text-gray-900">Mine saker</h2>
+                                    <h2 className="text-4xl font-extrabold">Mine saker</h2>
                                     <div className="grid gap-4">
                                         {requests.filter(r => r.requested_by === user.email).map(req => (
                                             <div key={req.id} className="glass-card p-8 rounded-[2rem] flex justify-between items-center">
                                                 <div>
-                                                    <div className="flex gap-2 items-center mb-2">
-                                                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest ${req.type === 'TILGANG' ? 'bg-purple-50 text-purple-600' : 'bg-blue-50 text-blue-600'}`}>{req.type}</span>
-                                                        <span className="text-[10px] text-gray-400 font-bold italic">ID: #{req.id}</span>
-                                                    </div>
-                                                    <h3 className="text-xl font-black text-gray-900">{req.title}</h3>
-                                                    <p className="text-sm text-gray-400 mt-1">Ansvarlig: {req.assigned_to}</p>
+                                                    <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest mb-2 inline-block ${req.status === 'Approved' ? 'bg-green-50 text-green-600' : req.status === 'Rejected' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>{req.status}</span>
+                                                    <h3 className="text-xl font-black">{req.title}</h3>
+                                                    {req.admin_reason && <p className="text-sm text-blue-600 font-bold mt-2 italic">"{req.admin_reason}"</p>}
                                                 </div>
-                                                <div className="text-right">
-                                                    <div className={`px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${req.status === 'Open' ? 'bg-green-50 text-green-600' : 'bg-gray-100 text-gray-500'}`}>{req.status}</div>
-                                                </div>
+                                                <div className="text-xs font-bold text-gray-400 italic">#{req.id}</div>
                                             </div>
                                         ))}
                                     </div>
                                 </div>
                             )}
 
-                            {/* VIEW: LIVE OPS */}
+                            {/* ACCESS REQUEST */}
+                            {view === 'access' && (
+                                <div className="max-w-xl animate-in fade-in">
+                                    <h2 className="text-4xl font-extrabold mb-8">Be om tilgang</h2>
+                                    <form onSubmit={(e) => handleRequestSubmit(e, 'TILGANG')} className="glass-card p-10 rounded-[3rem] space-y-6">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase text-gray-400 ml-4 tracking-widest">Velg rapport</label>
+                                            <select name="report" id="reportSelect" onChange={(e) => setAdminSubView(e.target.value)} className="w-full p-5 bg-gray-50 rounded-2xl font-bold outline-none border-none">
+                                                {REPORTS.map(r => <option key={r} value={r}>{r}</option>)}
+                                            </select>
+                                        </div>
+                                        {adminSubView === 'Annet' && <input name="other" required placeholder="Hvilken rapport?" className="w-full p-5 bg-gray-50 rounded-2xl font-bold border-none outline-none" />}
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black uppercase text-gray-400 ml-4 tracking-widest">Begrunnelse</label>
+                                            <textarea name="reason" required className="w-full p-5 bg-gray-50 rounded-2xl h-32 border-none outline-none" placeholder="Hvorfor trenger du dette?"></textarea>
+                                        </div>
+                                        <button className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-700 transition-all">Send ➜</button>
+                                    </form>
+                                </div>
+                            )}
+
+                            {/* LIVE OPS */}
                             {view === 'systems' && (
                                 <div className="space-y-8 animate-in fade-in">
-                                    <h2 className="text-4xl font-extrabold text-gray-900">Live Operations</h2>
+                                    <h2 className="text-4xl font-extrabold">Live Operations</h2>
                                     <div className="grid gap-6">
                                         {systems.map(s => (
                                             <div key={s.id} className="glass-card p-8 rounded-[2.5rem] flex flex-col gap-4">
@@ -146,110 +192,89 @@
                                                         <h4 className="font-black text-2xl">{s.system_name}</h4>
                                                     </div>
                                                     <div className="text-right">
-                                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Sist oppdatert</p>
-                                                        <p className="text-sm font-bold text-gray-900">{new Date(s.updated_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                                                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Sist oppdatert {new Date(s.updated_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
                                                     </div>
                                                 </div>
-                                                {s.status_message && (
-                                                    <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                                                        <p className="text-sm font-medium text-gray-600 italic">"{s.status_message}"</p>
-                                                    </div>
-                                                )}
+                                                {s.status_message && <p className="text-sm font-medium text-gray-600 bg-gray-50 p-4 rounded-2xl italic border border-gray-100">"{s.status_message}"</p>}
                                             </div>
                                         ))}
                                     </div>
                                 </div>
                             )}
 
-                            {/* VIEW: ACCESS REQUEST */}
-                            {view === 'access' && (
-                                <div className="max-w-xl animate-in fade-in">
-                                    <h2 className="text-4xl font-extrabold mb-8">Be om tilgang</h2>
-                                    <form onSubmit={handleAccessRequest} className="glass-card p-10 rounded-[3rem] space-y-6">
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase text-gray-400 ml-4">Velg Rapport / System</label>
-                                            <select name="report" className="w-full p-5 bg-gray-50 rounded-2xl font-bold outline-none" onChange={(e) => setAdminSubView(e.target.value)}>
-                                                {REPORTS.map(r => <option key={r} value={r}>{r}</option>)}
-                                            </select>
-                                        </div>
-                                        {adminSubView === 'Annet' && (
-                                            <input name="other_report" required className="w-full p-5 bg-gray-50 rounded-2xl font-bold outline-none" placeholder="Hva trenger du tilgang til?" />
-                                        )}
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black uppercase text-gray-400 ml-4">Hvorfor trenger du tilgang?</label>
-                                            <textarea name="reason" required className="w-full p-5 bg-gray-50 rounded-2xl h-32 outline-none" placeholder="Beskriv behovet ditt..."></textarea>
-                                        </div>
-                                        <button className="w-full bg-blue-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-700 transition-all">Send forespørsel</button>
-                                    </form>
-                                </div>
-                            )}
-
-                            {/* VIEW: ADMIN */}
+                            {/* ADMIN CONTROL CENTER */}
                             {view === 'admin' && (
                                 <div className="space-y-10 animate-in fade-in">
-                                    <div className="flex gap-4 p-1.5 bg-gray-100 rounded-2xl w-fit font-bold text-xs uppercase">
-                                        <button onClick={() => setAdminSubView('tasks')} className={`px-6 py-2 rounded-xl ${adminSubView === 'tasks' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}>Åpne Saker</button>
-                                        <button onClick={() => setAdminSubView('log')} className={`px-6 py-2 rounded-xl ${adminSubView === 'log' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}>Approval Log</button>
-                                        <button onClick={() => setAdminSubView('live')} className={`px-6 py-2 rounded-xl ${adminSubView === 'live' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}>Live Ops</button>
+                                    <div className="flex gap-4 p-1.5 bg-gray-100 rounded-2xl w-fit font-bold text-[10px] uppercase tracking-widest">
+                                        <button onClick={() => setAdminSubView('tasks')} className={`px-6 py-2.5 rounded-xl transition-all ${adminSubView === 'tasks' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}>Oppgaver</button>
+                                        <button onClick={() => setAdminSubView('requests')} className={`px-6 py-2.5 rounded-xl transition-all ${adminSubView === 'requests' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}>Tilgangsforespørsler</button>
+                                        <button onClick={() => setAdminSubView('log')} className={`px-6 py-2.5 rounded-xl transition-all ${adminSubView === 'log' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}>Approval Log</button>
+                                        <button onClick={() => setAdminSubView('live')} className={`px-6 py-2.5 rounded-xl transition-all ${adminSubView === 'live' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}>Live Ops</button>
                                     </div>
 
+                                    {/* ADMIN: VANLIGE OPPGAVER */}
                                     {adminSubView === 'tasks' && (
                                         <div className="space-y-8">
-                                            {/* SEKSJON: IKKE TILDELT */}
                                             <div className="space-y-4">
-                                                <h4 className="text-[10px] font-black text-red-400 uppercase tracking-[0.2em] ml-2">Ubehandlede Saker</h4>
-                                                {requests.filter(r => r.status === 'Open' && r.assigned_to === 'Ikke tildelt').map(req => (
+                                                <h4 className="text-[10px] font-black text-red-400 uppercase tracking-[0.2em] ml-2">Ubehandlede Oppgaver</h4>
+                                                {requests.filter(r => r.type !== 'TILGANG' && r.status === 'Open' && r.assigned_to === 'Ikke tildelt').map(req => (
                                                     <div key={req.id} className="glass-card p-6 rounded-[2rem] border-l-4 border-l-red-400 flex justify-between items-center bg-red-50/10">
-                                                        <div>
+                                                        <div className="flex-1 pr-6">
                                                             <h5 className="font-black text-lg">{req.title}</h5>
-                                                            <p className="text-xs text-gray-500">{req.requested_by} • {req.type}</p>
+                                                            <p className="text-xs text-gray-500 truncate max-w-md">{req.description}</p>
                                                         </div>
-                                                        <select onChange={(e) => updateRequest(req.id, {assigned_to: e.target.value})} className="bg-white p-3 rounded-xl text-[10px] font-black uppercase shadow-sm outline-none">
+                                                        <select onChange={(e) => supabaseClient.from('requests').update({assigned_to: e.target.value}).eq('id', req.id).then(fetchData)} className="bg-white p-3 rounded-xl text-[10px] font-black uppercase shadow-sm border-none outline-none">
                                                             {TEAM.map(t => <option key={t}>{t}</option>)}
                                                         </select>
-                                                    </div>
-                                                ))}
-                                            </div>
-
-                                            {/* SEKSJON: ANDRE ÅPNE */}
-                                            <div className="space-y-4 pt-4 border-t border-gray-100">
-                                                <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-2">Under arbeid</h4>
-                                                {requests.filter(r => r.status === 'Open' && r.assigned_to !== 'Ikke tildelt').map(req => (
-                                                    <div key={req.id} className="glass-card p-6 rounded-[2rem] flex justify-between items-center">
-                                                        <div>
-                                                            <h5 className="font-black text-lg">{req.title}</h5>
-                                                            <p className="text-xs text-gray-500">{req.requested_by} • Ansvar: {req.assigned_to}</p>
-                                                        </div>
-                                                        <div className="flex gap-2">
-                                                            <button onClick={() => updateRequest(req.id, {status: 'Approved'})} className="bg-green-500 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase">Godkjenn</button>
-                                                            <button onClick={() => updateRequest(req.id, {status: 'Rejected'})} className="bg-red-500 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase">Avslå</button>
-                                                        </div>
                                                     </div>
                                                 ))}
                                             </div>
                                         </div>
                                     )}
 
+                                    {/* ADMIN: TILGANGSFORESPØRSLER */}
+                                    {adminSubView === 'requests' && (
+                                        <div className="space-y-6">
+                                            <h4 className="text-[10px] font-black text-blue-400 uppercase tracking-[0.2em] ml-2">Venter på godkjenning</h4>
+                                            {requests.filter(r => r.type === 'TILGANG' && r.status === 'Open').map(req => (
+                                                <div key={req.id} className="glass-card p-8 rounded-[2.5rem] flex flex-col gap-6">
+                                                    <div className="flex justify-between items-start">
+                                                        <div>
+                                                            <h5 className="font-black text-2xl text-gray-900">{req.title}</h5>
+                                                            <p className="text-xs font-bold text-gray-400 mt-1 uppercase tracking-widest">Fra: {req.requested_by}</p>
+                                                            <p className="text-sm font-medium text-gray-600 mt-4 bg-gray-50 p-4 rounded-xl italic">"{req.description}"</p>
+                                                        </div>
+                                                        <div className="flex gap-3">
+                                                            <button onClick={() => setActiveDecision({id: req.id, status: 'Approved'})} className="btn-approve text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest">Godkjenn</button>
+                                                            <button onClick={() => setActiveDecision({id: req.id, status: 'Rejected'})} className="btn-reject text-white px-6 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest">Avslå</button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* ADMIN: APPROVAL LOG */}
                                     {adminSubView === 'log' && (
                                         <div className="glass-card rounded-[2.5rem] overflow-hidden">
-                                            <table className="w-full text-left border-collapse">
-                                                <thead className="bg-gray-50">
+                                            <table className="w-full text-left">
+                                                <thead className="bg-gray-50 font-black text-[10px] uppercase tracking-widest text-gray-400">
                                                     <tr>
-                                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-gray-400">Dato</th>
-                                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-gray-400">Bruker</th>
-                                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-gray-400">Sak</th>
-                                                        <th className="p-6 text-[10px] font-black uppercase tracking-widest text-gray-400 text-right">Utfall</th>
+                                                        <th className="p-6">Bruker</th>
+                                                        <th className="p-6">Rapport</th>
+                                                        <th className="p-6">Utfall</th>
+                                                        <th className="p-6">Begrunnelse</th>
                                                     </tr>
                                                 </thead>
-                                                <tbody className="divide-y divide-gray-50">
-                                                    {requests.filter(r => r.status !== 'Open').map(req => (
-                                                        <tr key={req.id}>
-                                                            <td className="p-6 text-xs font-bold text-gray-400">{new Date(req.created_at).toLocaleDateString()}</td>
-                                                            <td className="p-6 text-xs font-bold">{req.requested_by}</td>
-                                                            <td className="p-6 font-bold">{req.title}</td>
-                                                            <td className="p-6 text-right">
+                                                <tbody className="divide-y divide-gray-50 text-sm font-medium">
+                                                    {requests.filter(r => r.type === 'TILGANG' && r.status !== 'Open').map(req => (
+                                                        <tr key={req.id} className="hover:bg-gray-50/50">
+                                                            <td className="p-6 text-gray-500">{req.requested_by.split('@')[0]}</td>
+                                                            <td className="p-6 font-bold">{req.title.replace('Tilgang: ', '')}</td>
+                                                            <td className="p-6">
                                                                 <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase ${req.status === 'Approved' ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-600'}`}>{req.status}</span>
                                                             </td>
+                                                            <td className="p-6 text-xs italic text-gray-400">{req.admin_reason}</td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
@@ -257,29 +282,26 @@
                                         </div>
                                     )}
 
+                                    {/* ADMIN: LIVE OPS CONTROL */}
                                     {adminSubView === 'live' && (
                                         <div className="grid gap-6">
                                             {systems.map(s => (
                                                 <div key={s.id} className="glass-card p-10 rounded-[3rem] space-y-6">
                                                     <div className="flex justify-between items-center">
                                                         <h4 className="font-black text-2xl">{s.system_name}</h4>
-                                                        <select value={s.status} onChange={(e) => supabaseClient.from('system_status').update({status: e.target.value}).eq('id', s.id).then(fetchData)} className="bg-gray-50 p-3 rounded-xl text-xs font-bold outline-none">
+                                                        <select value={s.status} onChange={(e) => supabaseClient.from('system_status').update({status: e.target.value}).eq('id', s.id).then(fetchData)} className="bg-gray-50 p-3 rounded-xl text-xs font-bold border-none outline-none">
                                                             <option value="online">Online</option>
                                                             <option value="degraded">Degraded</option>
                                                             <option value="offline">Offline</option>
                                                         </select>
                                                     </div>
-                                                    <div className="space-y-2">
-                                                        <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Statusmelding</label>
-                                                        <input defaultValue={s.status_message} onBlur={(e) => supabaseClient.from('system_status').update({status_message: e.target.value}).eq('id', s.id).then(fetchData)} className="w-full p-4 bg-gray-50 rounded-2xl text-sm italic outline-none" placeholder="Skriv en beskjed til brukerne..." />
-                                                    </div>
+                                                    <input defaultValue={s.status_message} onBlur={(e) => supabaseClient.from('system_status').update({status_message: e.target.value}).eq('id', s.id).then(fetchData)} className="w-full p-4 bg-gray-50 rounded-2xl text-sm italic outline-none border-none" placeholder="Legg til melding..." />
                                                 </div>
                                             ))}
                                         </div>
                                     )}
                                 </div>
                             )}
-
                         </div>
                     </main>
                 </div>
