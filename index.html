@@ -303,26 +303,79 @@
         );
 
         const LoginScreen = ({ onLogin }) => {
+            const [mode, setMode] = useState('login'); // login, signup, forgot
             const [email, setEmail] = useState('');
             const [pass, setPass] = useState('');
-            const handleLogin = async (e) => {
+            const [confirmPass, setConfirmPass] = useState('');
+            const [message, setMessage] = useState('');
+
+            const handleAuth = async (e) => {
                 e.preventDefault();
-                const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: pass });
-                if (error) alert("Feil pålogging"); else onLogin(data.user);
+                setMessage('');
+
+                if (mode === 'signup') {
+                    if (pass !== confirmPass) {
+                        setMessage("Passordene samsvarer ikke.");
+                        return;
+                    }
+                    const { data, error } = await supabaseClient.auth.signUp({ email, password: pass });
+                    if (error) setMessage(error.message);
+                    else setMessage("Bruker opprettet! Sjekk e-posten din for bekreftelse.");
+                } else if (mode === 'login') {
+                    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: pass });
+                    if (error) setMessage("Feil e-post eller passord.");
+                    else onLogin(data.user);
+                } else if (mode === 'forgot') {
+                    const { error } = await supabaseClient.auth.resetPasswordForEmail(email);
+                    if (error) setMessage(error.message);
+                    else setMessage("Instruksjoner for nullstilling sendt til e-post.");
+                }
             };
+
             return (
                 <div className="flex h-screen w-screen overflow-hidden bg-white">
                     <div className="w-[450px] p-16 flex flex-col justify-center">
-                        <h1 className="text-4xl font-black italic mb-10 text-slate-900 leading-none">RCMP</h1>
+                        <h1 className="text-4xl font-black italic mb-2 text-slate-900 leading-none">RCMP</h1>
                         <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-10">Experience Design Portal</p>
-                        <form onSubmit={handleLogin} className="space-y-6">
+                        
+                        <h2 className="text-2xl font-black mb-6">
+                            {mode === 'login' ? 'Logg inn' : mode === 'signup' ? 'Ny bruker' : 'Glemt passord'}
+                        </h2>
+
+                        <form onSubmit={handleAuth} className="space-y-4">
                             <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="input-field" placeholder="E-post" required />
-                            <input type="password" value={pass} onChange={e => setPass(e.target.value)} className="input-field" placeholder="Passord" required />
-                            <button className="bg-[#0058AB] text-white p-5 rounded-2xl font-black uppercase tracking-widest btn-clickable w-full shadow-lg">Logg inn ➜</button>
+                            
+                            {mode !== 'forgot' && (
+                                <input type="password" value={pass} onChange={e => setPass(e.target.value)} className="input-field" placeholder="Passord" required />
+                            )}
+
+                            {mode === 'signup' && (
+                                <input type="password" value={confirmPass} onChange={e => setConfirmPass(e.target.value)} className="input-field" placeholder="Bekreft passord" required />
+                            )}
+
+                            {message && <p className={`text-xs font-bold ${message.includes('sendt') || message.includes('opprettet') ? 'text-emerald-500' : 'text-red-500'}`}>{message}</p>}
+
+                            <button className="bg-[#0058AB] text-white p-5 rounded-2xl font-black uppercase tracking-widest btn-clickable w-full shadow-lg mt-4">
+                                {mode === 'login' ? 'Logg inn ➜' : mode === 'signup' ? 'Opprett bruker ➜' : 'Nullstill ➜'}
+                            </button>
                         </form>
+
+                        <div className="mt-8 space-y-2">
+                            {mode === 'login' ? (
+                                <>
+                                    <button onClick={() => setMode('signup')} className="text-xs font-bold text-gray-500 hover:text-[#0058AB] block">Har du ikke konto? Lag ny bruker</button>
+                                    <button onClick={() => setMode('forgot')} className="text-xs font-bold text-gray-500 hover:text-[#0058AB] block">Glemt passord?</button>
+                                </>
+                            ) : (
+                                <button onClick={() => {setMode('login'); setMessage('');}} className="text-xs font-bold text-gray-500 hover:text-[#0058AB] block">Tilbake til logg inn</button>
+                            )}
+                        </div>
                     </div>
                     <div className="flex-1 hero-gradient flex items-center justify-center">
-                        <div className="text-center"><h2 className="text-amber-400 text-7xl font-black italic leading-none drop-shadow-2xl">Experience Design</h2><p className="text-white font-bold tracking-[0.5em] uppercase mt-4 opacity-60">Norway Hub</p></div>
+                        <div className="text-center">
+                            <h2 className="text-amber-400 text-7xl font-black italic leading-none drop-shadow-2xl">Experience Design</h2>
+                            <p className="text-white font-bold tracking-[0.5em] uppercase mt-4 opacity-60">Norway Hub</p>
+                        </div>
                     </div>
                 </div>
             );
