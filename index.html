@@ -58,6 +58,11 @@
                 setSystems(sys || []);
             };
 
+            const handleLogout = async () => {
+                await supabaseClient.auth.signOut();
+                window.location.reload(); // Dette sikrer at brukeren sendes ut
+            };
+
             const finalizeDecision = async (reason) => {
                 if (!activeDecision) return;
                 await supabaseClient.from('requests').update({ 
@@ -102,7 +107,7 @@
             };
 
             const isAdmin = user && ['henrik.h.wiik@gmail.com', 'marthe.epost@ingka.ikea.com', 'karolina.epost@ingka.ikea.com'].includes(user.email);
-            if (!user) return <div className="p-20 text-center font-bold text-gray-300 italic">RCMP...</div>;
+            if (!user) return <div className="p-20 text-center font-bold text-gray-300 italic tracking-widest animate-pulse">RCMP...</div>;
 
             return (
                 <div className="flex min-h-screen">
@@ -122,26 +127,34 @@
 
                     {/* SIDEBAR */}
                     <aside className="w-72 bg-white border-r border-gray-100 flex flex-col fixed h-full z-20 pt-12">
-                        <div className="px-10 mb-8">
+                        <div className="px-10 mb-6">
                             <h1 className="text-4xl font-black italic text-gray-900 leading-none">RCMP</h1>
                             <p className="text-[9px] font-black uppercase tracking-[0.3em] text-gray-400 mt-1.5">Experience Design</p>
                         </div>
+
+                        {/* SEKSJON: MIN SIDE */}
+                        <div className="mb-6">
+                             <button onClick={() => setView('dashboard')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-4 text-sm font-bold sidebar-item ${view === 'dashboard' ? 'sidebar-active' : 'text-gray-900 hover:bg-gray-50'}`}>👤 Min side</button>
+                        </div>
+                        
+                        <div className="mx-8 border-t border-gray-100 mb-6"></div>
+
                         <nav className="flex-1 overflow-y-auto">
-                            <button onClick={() => setView('dashboard')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'dashboard' ? 'sidebar-active' : 'text-gray-500'}`}>🏠 Dashboard</button>
-                            <div className="my-6 mx-8 border-t border-gray-100"></div>
                             <button onClick={() => setView('systems')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'systems' ? 'sidebar-active' : 'text-gray-500'}`}>🛰️ Live Ops</button>
                             <button onClick={() => setView('insights')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'insights' ? 'sidebar-active' : 'text-gray-500'}`}>💡 Insight Engine</button>
                             <button onClick={() => setView('access')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'access' ? 'sidebar-active' : 'text-gray-500'}`}>🔑 Be om tilgang</button>
                             <button onClick={() => setView('new')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'new' ? 'sidebar-active' : 'text-gray-500'}`}>✨ Ny forespørsel</button>
                             <button onClick={() => setView('error')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'error' ? 'sidebar-active' : 'text-gray-500'}`}>⚠️ Rapporter feil</button>
+                            
                             {isAdmin && (
                                 <div className="mt-8 pt-8 border-t border-gray-100">
                                     <button onClick={() => setView('admin')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-bold sidebar-item ${view === 'admin' ? 'sidebar-active' : 'text-red-400'}`}>🛡️ Control Center</button>
                                 </div>
                             )}
                         </nav>
+                        
                         <div className="p-8 border-t border-gray-50">
-                            <button onClick={() => supabaseClient.auth.signOut()} className="text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-red-500 transition-colors w-full text-center">Logg ut</button>
+                            <button onClick={handleLogout} className="text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-red-500 transition-colors w-full text-center">Logg ut ➜</button>
                         </div>
                     </aside>
 
@@ -149,10 +162,10 @@
                     <main className="flex-1 ml-72 p-16">
                         <div className="max-w-5xl mx-auto">
                             
-                            {/* VIEW: DASHBOARD */}
+                            {/* VIEW: MIN SIDE */}
                             {view === 'dashboard' && (
                                 <div className="space-y-8 animate-in fade-in">
-                                    <h2 className="text-4xl font-extrabold">Mine saker</h2>
+                                    <h2 className="text-4xl font-extrabold">Min side</h2>
                                     <div className="grid gap-4">
                                         {requests.filter(r => r.requested_by === user.email).map(req => (
                                             <div key={req.id} className="glass-card p-8 rounded-[2rem] flex justify-between items-center">
@@ -195,7 +208,7 @@
                                 </div>
                             )}
 
-                            {/* VIEW: ACCESS / NEW / ERROR */}
+                            {/* VIEW: NEW / ERROR */}
                             {(view === 'new' || view === 'error') && (
                                 <div className="max-w-xl animate-in fade-in">
                                     <h2 className="text-4xl font-extrabold mb-8">{view === 'new' ? 'Ny forespørsel' : 'Rapporter feil'}</h2>
@@ -253,23 +266,6 @@
                                         <button onClick={() => setAdminSubView('live')} className={`px-6 py-2.5 rounded-xl ${adminSubView === 'live' ? 'bg-white shadow-sm' : 'text-gray-500'}`}>Live Ops</button>
                                     </div>
 
-                                    {adminSubView === 'insights' && (
-                                        <div className="grid gap-8">
-                                            {insights.map(item => (
-                                                <div key={item.id} className="glass-card p-10 rounded-[3rem] space-y-6">
-                                                    <div className="flex justify-between border-b pb-4"><h4 className="font-black">Modul #{item.id}</h4><input type="checkbox" checked={item.is_active} onChange={(e) => supabaseClient.from('insights').update({is_active: e.target.checked}).eq('id', item.id).then(fetchData)} /></div>
-                                                    <div className="grid grid-cols-2 gap-4">
-                                                        <input defaultValue={item.title} onBlur={(e) => supabaseClient.from('insights').update({title: e.target.value}).eq('id', item.id).then(fetchData)} className="p-4 bg-gray-50 rounded-xl" />
-                                                        <input defaultValue={item.tag} onBlur={(e) => supabaseClient.from('insights').update({tag: e.target.value}).eq('id', item.id).then(fetchData)} className="p-4 bg-gray-50 rounded-xl" />
-                                                        <textarea defaultValue={item.description} onBlur={(e) => supabaseClient.from('insights').update({description: e.target.value}).eq('id', item.id).then(fetchData)} className="col-span-2 p-4 bg-gray-50 rounded-xl" />
-                                                        <input defaultValue={item.image_url} onBlur={(e) => supabaseClient.from('insights').update({image_url: e.target.value}).eq('id', item.id).then(fetchData)} className="p-4 bg-gray-50 rounded-xl" placeholder="Bilde URL" />
-                                                        <input defaultValue={item.link_url} onBlur={(e) => supabaseClient.from('insights').update({link_url: e.target.value}).eq('id', item.id).then(fetchData)} className="p-4 bg-gray-50 rounded-xl" placeholder="Link URL" />
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-
                                     {adminSubView === 'tasks' && (
                                         <div className="space-y-4">
                                             {requests.filter(r => r.type !== 'TILGANG' && r.status === 'Open').map(req => (
@@ -280,6 +276,38 @@
                                                     </select>
                                                 </div>
                                             ))}
+                                        </div>
+                                    )}
+
+                                    {adminSubView === 'live' && (
+                                        <div className="grid gap-6">
+                                            {systems.map(s => (
+                                                <div key={s.id} className="glass-card p-10 rounded-[3rem] space-y-6">
+                                                    <div className="flex flex-col gap-4">
+                                                        <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Systemnavn</label>
+                                                        <input defaultValue={s.system_name} onBlur={(e) => supabaseClient.from('system_status').update({system_name: e.target.value}).eq('id', s.id).then(fetchData)} className="w-full p-4 bg-gray-50 rounded-2xl font-bold border-none outline-none" />
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <h4 className="font-black text-xs uppercase tracking-widest text-gray-400 ml-2">Status</h4>
+                                                        <select value={s.status} onChange={(e) => supabaseClient.from('system_status').update({status: e.target.value}).eq('id', s.id).then(fetchData)} className="bg-gray-50 p-3 rounded-xl text-xs font-bold border-none outline-none">
+                                                            <option value="online">Online</option>
+                                                            <option value="degraded">Degraded</option>
+                                                            <option value="offline">Offline</option>
+                                                        </select>
+                                                    </div>
+                                                    <div className="flex flex-col gap-2">
+                                                        <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Melding</label>
+                                                        <input defaultValue={s.status_message} onBlur={(e) => supabaseClient.from('system_status').update({status_message: e.target.value}).eq('id', s.id).then(fetchData)} className="w-full p-4 bg-gray-50 rounded-2xl italic border-none outline-none" placeholder="Legg til melding..." />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* (Resten av Admin-visninger som Logg, Insights osv forblir som før) */}
+                                    {adminSubView === 'log' && (
+                                        <div className="glass-card rounded-[2.5rem] overflow-hidden">
+                                            <table className="w-full text-left"><thead className="bg-gray-50 font-black text-[10px] uppercase text-gray-400"><tr><th className="p-6">Rapport</th><th className="p-6">Status</th><th className="p-6">Begrunnelse</th></tr></thead><tbody className="divide-y divide-gray-50">{requests.filter(r => r.type === 'TILGANG' && r.status !== 'Open').map(req => (<tr key={req.id}><td className="p-6 font-bold">{req.title}</td><td className="p-6 uppercase text-[9px] font-black">{req.status}</td><td className="p-6 italic text-gray-400 text-xs">{req.admin_reason}</td></tr>))}</tbody></table>
                                         </div>
                                     )}
 
@@ -299,25 +327,18 @@
                                         </div>
                                     )}
 
-                                    {adminSubView === 'log' && (
-                                        <div className="glass-card rounded-[2.5rem] overflow-hidden">
-                                            <table className="w-full text-left">
-                                                <thead className="bg-gray-50 font-black text-[10px] uppercase text-gray-400"><tr><th className="p-6">Rapport</th><th className="p-6">Status</th><th className="p-6">Begrunnelse</th></tr></thead>
-                                                <tbody className="divide-y divide-gray-50">
-                                                    {requests.filter(r => r.type === 'TILGANG' && r.status !== 'Open').map(req => (
-                                                        <tr key={req.id}><td className="p-6 font-bold">{req.title}</td><td className="p-6 uppercase text-[9px] font-black">{req.status}</td><td className="p-6 italic text-gray-400 text-xs">{req.admin_reason}</td></tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    )}
-
-                                    {adminSubView === 'live' && (
-                                        <div className="grid gap-6">
-                                            {systems.map(s => (
-                                                <div key={s.id} className="glass-card p-8 rounded-[3rem] space-y-4">
-                                                    <div className="flex justify-between"><h4 className="font-black text-xl">{s.system_name}</h4><select value={s.status} onChange={(e) => supabaseClient.from('system_status').update({status: e.target.value}).eq('id', s.id).then(fetchData)} className="bg-gray-50 p-2 rounded-xl"><option value="online">Online</option><option value="degraded">Degraded</option><option value="offline">Offline</option></select></div>
-                                                    <input defaultValue={s.status_message} onBlur={(e) => supabaseClient.from('system_status').update({status_message: e.target.value}).eq('id', s.id).then(fetchData)} className="w-full p-4 bg-gray-50 rounded-2xl italic border-none outline-none" placeholder="Beskjed..." />
+                                    {adminSubView === 'insights' && (
+                                        <div className="grid gap-8">
+                                            {insights.map(item => (
+                                                <div key={item.id} className="glass-card p-10 rounded-[3rem] space-y-6">
+                                                    <div className="flex justify-between border-b pb-4"><h4 className="font-black text-lg">Modul #{item.id}</h4><label className="flex items-center gap-2"><span className="text-[10px] font-black uppercase text-gray-400">Aktiv:</span><input type="checkbox" checked={item.is_active} onChange={(e) => supabaseClient.from('insights').update({is_active: e.target.checked}).eq('id', item.id).then(fetchData)} /></label></div>
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <input defaultValue={item.title} onBlur={(e) => supabaseClient.from('insights').update({title: e.target.value}).eq('id', item.id).then(fetchData)} className="p-4 bg-gray-50 rounded-xl font-bold" placeholder="Tittel" />
+                                                        <input defaultValue={item.tag} onBlur={(e) => supabaseClient.from('insights').update({tag: e.target.value}).eq('id', item.id).then(fetchData)} className="p-4 bg-gray-50 rounded-xl" placeholder="Tag" />
+                                                        <textarea defaultValue={item.description} onBlur={(e) => supabaseClient.from('insights').update({description: e.target.value}).eq('id', item.id).then(fetchData)} className="col-span-2 p-4 bg-gray-50 rounded-xl h-24" placeholder="Beskrivelse" />
+                                                        <input defaultValue={item.image_url} onBlur={(e) => supabaseClient.from('insights').update({image_url: e.target.value}).eq('id', item.id).then(fetchData)} className="p-4 bg-gray-50 rounded-xl text-xs" placeholder="Bilde URL" />
+                                                        <input defaultValue={item.link_url} onBlur={(e) => supabaseClient.from('insights').update({link_url: e.target.value}).eq('id', item.id).then(fetchData)} className="p-4 bg-gray-50 rounded-xl text-xs" placeholder="Link URL" />
+                                                    </div>
                                                 </div>
                                             ))}
                                         </div>
