@@ -3,25 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RCMP | Operations Hub</title>
+    <title>RCMP | Operations Portal</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Plus Jakarta Sans', sans-serif; letter-spacing: -0.025em; background-color: #fcfcfd; color: #101828; }
+        body { font-family: 'Inter', sans-serif; letter-spacing: -0.02em; background-color: #f8f9fa; color: #1a1a1a; }
         .ikea-blue { background-color: #0058AB; }
-        .sidebar-item { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); border-radius: 12px; margin: 2px 14px; }
-        .sidebar-active { background-color: #f5f8ff; color: #0058AB !important; font-weight: 800; }
-        .glass-card { background: white; border: 1px solid #f0f1f3; box-shadow: 0 4px 15px -1px rgba(0,0,0,0.02); transition: transform 0.2s ease; }
-        .glass-card:hover { transform: translateY(-2px); }
-        .status-dot { width: 10px; height: 10px; border-radius: 50%; position: relative; }
-        .status-dot-pulse::after { content: ''; position: absolute; inset: -4px; border-radius: 50%; opacity: 0.3; background: inherit; animation: pulse 2s infinite; }
-        @keyframes pulse { 0% { transform: scale(1); opacity: 0.4; } 100% { transform: scale(2.5); opacity: 0; } }
-        .tooltip { visibility: hidden; position: absolute; z-index: 50; background: #101828; color: white; padding: 10px 14px; border-radius: 10px; font-size: 11px; bottom: 130%; left: 50%; transform: translateX(-50%); white-space: nowrap; box-shadow: 0 10px 20px rgba(0,0,0,0.15); font-weight: 600; }
+        .sidebar-item { transition: all 0.2s ease; border-radius: 12px; margin: 0 8px; }
+        .sidebar-active { background-color: #f0f4f8; color: #0058AB !important; font-weight: 800; }
+        .card-shadow { box-shadow: 0 4px 20px rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.05); }
+        .tooltip { visibility: hidden; position: absolute; z-index: 50; background: #1a1a1a; color: white; padding: 8px 12px; border-radius: 8px; font-size: 10px; bottom: 125%; left: 50%; transform: translateX(-50%); white-space: nowrap; }
         .has-tooltip:hover .tooltip { visibility: visible; }
+        .status-dot { width: 10px; height: 10px; border-radius: 50%; }
     </style>
 </head>
 <body>
@@ -38,9 +35,9 @@
         const ADMINS = ['henrik.h.wiik@gmail.com', 'marthe.epost@ingka.ikea.com', 'karolina.epost@ingka.ikea.com'];
 
         const Logo = () => (
-            <div className="select-none text-left mb-8 px-4">
-                <h1 className="font-black text-4xl tracking-[ -0.08em] leading-none text-gray-900 italic">RCMP</h1>
-                <p className="font-black text-[9px] uppercase tracking-[0.35em] mt-1 text-gray-400 opacity-80">Experience Design</p>
+            <div className="select-none text-left">
+                <h1 className="font-black text-3xl tracking-tighter leading-none text-gray-900 italic">RCMP</h1>
+                <p className="font-bold text-[8px] uppercase tracking-[0.25em] mt-1.5 text-gray-400">Experience Design Portal</p>
             </div>
         );
 
@@ -50,40 +47,24 @@
             const [adminSubView, setAdminSubView] = useState('tasks');
             const [requests, setRequests] = useState([]);
             const [reports, setReports] = useState([]);
+            const [insights, setInsights] = useState([]);
             const [globalAlert, setGlobalAlert] = useState("");
-            const [loading, setLoading] = useState(false);
 
             useEffect(() => {
                 supabaseClient.auth.getSession().then(({ data: { session } }) => setUser(session?.user ?? null));
-                const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((_event, session) => setUser(session?.user ?? null));
                 fetchData();
-                return () => subscription.unsubscribe();
             }, []);
 
             const fetchData = async () => {
                 const reqs = await supabaseClient.from('requests').select('*').order('created_at', { ascending: false });
                 const reps = await supabaseClient.from('reports').select('*').order('category', { ascending: true });
+                const ins = await supabaseClient.from('insights').select('*').order('id', { ascending: true });
                 const alertData = await supabaseClient.from('settings').select('value').eq('key', 'global_alert').maybeSingle();
+                
                 setRequests(reqs.data || []);
                 setReports(reps.data || []);
+                setInsights(ins.data || []);
                 setGlobalAlert(alertData?.value || "");
-            };
-
-            const handleSubmit = async (e) => {
-                e.preventDefault();
-                setLoading(true);
-                const fd = new FormData(e.target);
-                await supabaseClient.from('requests').insert([{
-                    title: fd.get('title'),
-                    description: fd.get('description'),
-                    type: view === 'error' ? 'Feilrapport' : 'Bestilling',
-                    requested_by: user.email,
-                    status: 'Ny',
-                    assigned_to: 'Ikke tildelt'
-                }]);
-                setLoading(false);
-                setView('dashboard');
-                fetchData();
             };
 
             const updateRequest = async (id, field, val, oldVal = null) => {
@@ -95,291 +76,129 @@
                 fetchData();
             };
 
-            const updateStatus = async (id, status) => {
-                await supabaseClient.from('reports').update({ 
-                    status, 
-                    last_update: new Date().toLocaleString('no-NO', {hour:'2-digit', minute:'2-digit', day:'2-digit', month:'2-digit'}) 
-                }).eq('id', id);
+            const updateInsight = async (id, field, val) => {
+                await supabaseClient.from('insights').update({ [field]: val }).eq('id', id);
                 fetchData();
             };
 
-            const deleteStatus = async (id) => {
-                if(confirm("Vil du slette denne statusen permanent?")) {
-                    await supabaseClient.from('reports').delete().eq('id', id);
-                    fetchData();
-                }
-            };
+            const isAdmin = user && ADMINS.includes(user.email);
 
-            const addNewStatus = async (e) => {
-                e.preventDefault();
-                const fd = new FormData(e.target);
-                await supabaseClient.from('reports').insert([{
-                    name: fd.get('name'),
-                    category: fd.get('category'),
-                    status: 'grønn',
-                    last_update: 'Opprettet nå'
-                }]);
-                e.target.reset();
-                fetchData();
-            };
-
-            const saveAlert = async (val) => {
-                await supabaseClient.from('settings').upsert({ key: 'global_alert', value: val });
-                setGlobalAlert(val);
-                alert("Varsel oppdatert!");
-            };
-
-            if (!user) return <div className="h-screen flex items-center justify-center font-bold text-gray-400">RCMP Portal Is Loading...</div>;
-
-            const isAdmin = ADMINS.includes(user.email);
-            const myRequests = requests.filter(r => r.requested_by === user.email);
+            if (!user) return <div className="p-20 text-center font-bold">Laster...</div>;
 
             return (
                 <div className="flex min-h-screen">
                     {/* SIDEBAR */}
                     <aside className="w-72 bg-white border-r border-gray-100 flex flex-col fixed h-full z-20">
-                        <div className="pt-12 pb-4"><Logo /></div>
-                        
-                        <nav className="flex-1 overflow-y-auto pt-4">
-                            <button onClick={() => setView('dashboard')} className={`w-[calc(100%-28px)] flex items-center gap-3 px-6 py-4 text-[13px] sidebar-item ${view === 'dashboard' ? 'sidebar-active' : 'text-gray-500 hover:bg-gray-50'}`}>🏠 Min side</button>
-                            
-                            <div className="my-6 mx-10 border-t border-gray-50"></div>
-
-                            <p className="px-10 text-[10px] font-black text-gray-300 uppercase tracking-[0.2em] mb-4">Operations Hub</p>
-                            <button onClick={() => setView('systems')} className={`w-[calc(100%-28px)] flex items-center gap-3 px-6 py-4 text-[13px] sidebar-item ${view === 'systems' ? 'sidebar-active' : 'text-gray-500 hover:bg-gray-50'}`}>🛰️ Live Operations</button>
-                            <button onClick={() => setView('insights')} className={`w-[calc(100%-28px)] flex items-center gap-3 px-6 py-4 text-[13px] sidebar-item ${view === 'insights' ? 'sidebar-active' : 'text-gray-500 hover:bg-gray-50'}`}>💡 Insight Engine</button>
-                            <button onClick={() => setView('kb')} className={`w-[calc(100%-28px)] flex items-center gap-3 px-6 py-4 text-[13px] sidebar-item ${view === 'kb' ? 'sidebar-active' : 'text-gray-500 hover:bg-gray-50'}`}>📚 Knowledge Base</button>
-                            <button onClick={() => setView('new')} className={`w-[calc(100%-28px)] flex items-center gap-3 px-6 py-4 text-[13px] sidebar-item ${view === 'new' ? 'sidebar-active' : 'text-gray-500 hover:bg-gray-50'}`}>✨ Ny forespørsel</button>
-                            <button onClick={() => setView('error')} className={`w-[calc(100%-28px)] flex items-center gap-3 px-6 py-4 text-[13px] sidebar-item ${view === 'error' ? 'sidebar-active' : 'text-gray-500 hover:bg-gray-50'}`}>⚠️ Rapporter feil</button>
-
+                        <div className="p-10 mb-4"><Logo /></div>
+                        <nav className="flex-1 space-y-1">
+                            <button onClick={() => setView('dashboard')} className={`w-[calc(100%-16px)] flex items-center gap-3 px-6 py-4 text-sm font-bold sidebar-item ${view === 'dashboard' ? 'sidebar-active' : 'text-gray-400'}`}>📊 Min side</button>
+                            <div className="h-px bg-gray-50 mx-8 my-4"></div>
+                            <button onClick={() => setView('systems')} className={`w-[calc(100%-16px)] flex items-center gap-3 px-6 py-4 text-sm font-bold sidebar-item ${view === 'systems' ? 'sidebar-active' : 'text-gray-400'}`}>🛰️ Live Operations</button>
+                            <button onClick={() => setView('insights')} className={`w-[calc(100%-16px)] flex items-center gap-3 px-6 py-4 text-sm font-bold sidebar-item ${view === 'insights' ? 'sidebar-active' : 'text-gray-400'}`}>💡 Insight Engine</button>
+                            <button onClick={() => setView('kb')} className={`w-[calc(100%-16px)] flex items-center gap-3 px-6 py-4 text-sm font-bold sidebar-item ${view === 'kb' ? 'sidebar-active' : 'text-gray-400'}`}>📚 Knowledge Base</button>
+                            <button onClick={() => setView('new')} className={`w-[calc(100%-16px)] flex items-center gap-3 px-6 py-4 text-sm font-bold sidebar-item ${view === 'new' ? 'sidebar-active' : 'text-gray-400'}`}>✨ Ny forespørsel</button>
                             {isAdmin && (
-                                <div className="mt-8 pt-8 border-t border-gray-100">
-                                    <button onClick={() => setView('admin')} className={`w-[calc(100%-28px)] flex items-center gap-3 px-6 py-4 text-[13px] sidebar-item ${view === 'admin' ? 'sidebar-active' : 'text-red-400 font-bold'}`}>🛡️ Control Center</button>
+                                <div className="mt-8 pt-8 border-t border-gray-50">
+                                    <button onClick={() => setView('admin')} className={`w-full flex items-center gap-3 px-6 py-4 text-sm font-bold sidebar-item ${view === 'admin' ? 'sidebar-active' : 'text-red-400'}`}>🛡️ Control Center</button>
                                 </div>
                             )}
                         </nav>
-                        
-                        <div className="p-8 border-t border-gray-50 bg-gray-50/30">
-                            <button onClick={() => supabaseClient.auth.signOut()} className="text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-red-500 w-full text-center">Logg ut</button>
+                        <div className="p-8 border-t border-gray-50 text-center">
+                            <button onClick={() => supabaseClient.auth.signOut()} className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Logg ut</button>
                         </div>
                     </aside>
 
-                    {/* MAIN */}
+                    {/* MAIN CONTENT */}
                     <main className="flex-1 ml-72 p-16">
-                        <div className="max-w-5xl mx-auto">
+                        <div className="max-w-4xl mx-auto">
                             
-                            {/* VIEW: DASHBOARD (MIN SIDE) */}
+                            {/* MIN SIDE */}
                             {view === 'dashboard' && (
-                                <div className="space-y-12">
-                                    <header>
-                                        <h2 className="text-5xl font-black tracking-tight text-gray-900">Min side</h2>
-                                        <div className="h-1.5 w-20 ikea-blue mt-4 rounded-full"></div>
-                                    </header>
-                                    <div className="grid grid-cols-1 gap-6">
-                                        {myRequests.length === 0 ? (
-                                            <div className="p-20 text-center border-2 border-dashed border-gray-100 rounded-[3rem] text-gray-300 font-bold">Ingen aktive saker registrert.</div>
-                                        ) : (
-                                            myRequests.map(req => (
-                                                <div key={req.id} className="glass-card p-10 rounded-[3rem] flex justify-between items-center group">
-                                                    <div>
-                                                        <span className="bg-blue-50 text-blue-600 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest">{req.type}</span>
-                                                        <h3 className="text-2xl font-black mt-4 text-gray-900">{req.title}</h3>
-                                                        <p className="text-sm text-gray-400 mt-1">Saksbehandler: <span className="font-bold text-gray-700">{req.assigned_to}</span></p>
-                                                    </div>
-                                                    <span className="bg-gray-900 text-white px-8 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest shadow-xl shadow-gray-200">{req.status}</span>
-                                                </div>
-                                            ))
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* VIEW: LIVE OPERATIONS */}
-                            {view === 'systems' && (
-                                <div className="space-y-12">
-                                    <header className="flex justify-between items-end">
-                                        <div>
-                                            <h2 className="text-5xl font-black tracking-tight text-gray-900">Live Operations</h2>
-                                            <p className="text-gray-400 mt-2 font-bold uppercase text-[10px] tracking-widest">Global Status & Monitoring</p>
-                                        </div>
-                                    </header>
-
-                                    {globalAlert && (
-                                        <div className="bg-blue-600 p-8 rounded-[2.5rem] text-white flex items-center gap-6 shadow-2xl shadow-blue-100">
-                                            <span className="text-3xl">📢</span>
-                                            <p className="text-xl font-bold italic tracking-tight">{globalAlert}</p>
-                                        </div>
-                                    )}
-
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        {reports.map(r => (
-                                            <div key={r.id} className="glass-card p-8 rounded-[2.5rem] flex items-center justify-between border-l-8 border-l-gray-50">
-                                                <div className="flex items-center gap-6">
-                                                    <div className={`status-dot status-dot-pulse ${r.status === 'grønn' ? 'bg-green-500' : r.status === 'gul' ? 'bg-amber-400' : 'bg-red-500'}`}></div>
-                                                    <div>
-                                                        <h4 className="font-bold text-gray-900 text-lg">{r.name}</h4>
-                                                        <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest">{r.category} • {r.last_update}</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* VIEW: INSIGHT ENGINE */}
-                            {view === 'insights' && (
-                                <div className="space-y-12">
-                                    <h2 className="text-5xl font-black tracking-tight text-gray-900">Insight Engine</h2>
-                                    <div className="grid grid-cols-3 gap-8">
-                                        <div className="col-span-2 glass-card p-12 rounded-[3.5rem] bg-gradient-to-br from-white to-gray-50 flex flex-col justify-between min-h-[400px]">
+                                <div className="space-y-6">
+                                    <h2 className="text-4xl font-black tracking-tighter text-gray-900 mb-10">Min side</h2>
+                                    {requests.filter(r => r.requested_by === user.email).map(req => (
+                                        <div key={req.id} className="p-8 rounded-3xl card-shadow bg-white flex justify-between items-center border border-gray-50">
                                             <div>
-                                                <span className="bg-blue-100 text-blue-700 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest">Performance Highlight</span>
-                                                <h3 className="text-4xl font-black mt-8 text-gray-900 leading-[1.1]">Innsikt i Sanntid.</h3>
-                                                <p className="text-gray-500 mt-6 text-lg font-medium">Vi ser nå på integrering av prediktive modeller for å forutse salgstrender i Q3.</p>
+                                                <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-full bg-blue-50 text-blue-500">{req.type}</span>
+                                                <h3 className="text-xl font-bold mt-2">{req.title}</h3>
+                                                <p className="text-gray-400 text-[10px]">Behandles av: <span className="text-gray-900 font-bold">{req.assigned_to}</span></p>
                                             </div>
-                                            <button className="w-fit ikea-blue text-white px-10 py-5 rounded-3xl font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-900/20">Åpne Analyse Hub ➜</button>
+                                            <span className="bg-gray-900 text-white px-5 py-2 rounded-lg text-[9px] font-black uppercase">{req.status}</span>
                                         </div>
-                                        <div className="glass-card p-10 rounded-[3.5rem] flex flex-col justify-center text-center border-blue-50">
-                                            <div className="text-5xl mb-6">📉</div>
-                                            <h4 className="font-black text-xl mb-2">Trenger du tall?</h4>
-                                            <p className="text-sm text-gray-500 mb-8 font-medium">Bestill tilpassede datasett eller SQL-uttrekk her.</p>
-                                            <button className="bg-gray-900 text-white py-4 rounded-2xl font-bold text-[10px] uppercase tracking-widest">Ny Data-ordre</button>
-                                        </div>
-                                    </div>
+                                    ))}
                                 </div>
                             )}
 
-                            {/* VIEW: KNOWLEDGE BASE */}
-                            {view === 'kb' && (
-                                <div className="space-y-12">
-                                    <h2 className="text-5xl font-black tracking-tight text-gray-900">Knowledge Base</h2>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                                        {['Design Guide', 'KPI Dictionary', 'Best Practices'].map((title, i) => (
-                                            <div key={title} className="glass-card p-10 rounded-[3rem] hover:bg-gray-50 transition-colors group cursor-pointer">
-                                                <div className="w-12 h-12 rounded-2xl bg-gray-900 text-white flex items-center justify-center font-bold text-xl mb-6">0{i+1}</div>
-                                                <h4 className="font-black text-xl mb-4">{title}</h4>
-                                                <p className="text-sm text-gray-500 font-medium leading-relaxed italic">Systematisert dokumentasjon for {title.toLowerCase()}.</p>
+                            {/* INSIGHT ENGINE */}
+                            {view === 'insights' && (
+                                <div className="space-y-10">
+                                    <h2 className="text-4xl font-black tracking-tighter text-gray-900 mb-10">Insight Engine</h2>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {insights.map(item => (
+                                            <div key={item.id} className={`p-10 rounded-[2.5rem] card-shadow bg-white border-t-4 ${item.color === 'blue' ? 'border-t-blue-600' : 'border-t-gray-900'}`}>
+                                                <span className="text-[9px] font-black uppercase tracking-widest text-gray-400">{item.tag}</span>
+                                                <h3 className="text-2xl font-black mt-4 mb-3">{item.title}</h3>
+                                                <p className="text-gray-500 text-sm mb-8 leading-relaxed">{item.description}</p>
+                                                <button className="ikea-blue text-white px-6 py-3 rounded-xl font-black uppercase text-[10px]">{item.button_text}</button>
                                             </div>
                                         ))}
                                     </div>
-                                    <div className="p-16 bg-gray-50 rounded-[4rem] text-center">
-                                        <h3 className="text-2xl font-black mb-4 tracking-tighter text-gray-400 italic">"Data is only useful when understood."</h3>
-                                    </div>
                                 </div>
                             )}
 
-                            {/* VIEW: SKJEMAER */}
-                            {(view === 'new' || view === 'error') && (
-                                <div className="max-w-2xl mx-auto">
-                                    <h2 className="text-4xl font-black tracking-tight mb-12">{view === 'new' ? 'Ny forespørsel' : 'Rapporter feil'}</h2>
-                                    <form onSubmit={handleSubmit} className="glass-card p-12 rounded-[3.5rem] space-y-8">
-                                        <div className="space-y-3">
-                                            <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest ml-1">Tittel på saken</label>
-                                            <input name="title" className="w-full p-6 bg-gray-50 rounded-2xl outline-none font-bold text-gray-900 border-2 border-transparent focus:border-blue-100 transition-all" placeholder="Hva gjelder det?" required />
-                                        </div>
-                                        <div className="space-y-3">
-                                            <label className="text-[11px] font-black text-gray-400 uppercase tracking-widest ml-1">Beskrivelse</label>
-                                            <textarea name="description" className="w-full p-6 bg-gray-50 rounded-2xl h-48 outline-none font-medium border-2 border-transparent focus:border-blue-100 transition-all" placeholder="Beskriv behovet eller feilen..." required></textarea>
-                                        </div>
-                                        <button disabled={loading} className={`w-full py-6 rounded-3xl font-black uppercase text-xs tracking-widest shadow-2xl transition-all ${view === 'error' ? 'bg-red-600 text-white shadow-red-100' : 'ikea-blue text-white shadow-blue-100'} active:scale-95`}>
-                                            {loading ? 'Sender...' : 'Send forespørsel ➜'}
-                                        </button>
-                                    </form>
-                                </div>
-                            )}
-
-                            {/* VIEW: ADMIN CONTROL CENTER */}
+                            {/* ADMIN CONTROL CENTER */}
                             {view === 'admin' && (
                                 <div className="space-y-10">
-                                    <div className="flex gap-4 p-2 bg-gray-100/60 rounded-[2rem] w-fit">
-                                        <button onClick={() => setAdminSubView('tasks')} className={`px-10 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all ${adminSubView === 'tasks' ? 'bg-white text-gray-900 shadow-md' : 'text-gray-400'}`}>Saksbehandling</button>
-                                        <button onClick={() => setAdminSubView('reports')} className={`px-10 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest transition-all ${adminSubView === 'reports' ? 'bg-white text-gray-900 shadow-md' : 'text-gray-400'}`}>Live Management</button>
+                                    <div className="flex gap-4 mb-10">
+                                        {['tasks', 'status', 'insights'].map(sub => (
+                                            <button key={sub} onClick={() => setAdminSubView(sub)} className={`px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest ${adminSubView === sub ? 'ikea-blue text-white' : 'bg-white text-gray-400'}`}>{sub}</button>
+                                        ))}
                                     </div>
 
-                                    {adminSubView === 'tasks' ? (
-                                        <div className="glass-card rounded-[3rem] overflow-hidden">
+                                    {adminSubView === 'tasks' && (
+                                        <div className="bg-white rounded-[2rem] card-shadow overflow-hidden">
                                             <table className="w-full text-left">
-                                                <thead className="bg-gray-50/50 text-[10px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100">
-                                                    <tr><th className="p-10">Oppgave / Bruker</th><th className="p-10">Tildelt</th><th className="p-10 text-right">Status</th></tr>
-                                                </thead>
                                                 <tbody className="divide-y divide-gray-50">
                                                     {requests.map(req => (
-                                                        <tr key={req.id} className="hover:bg-gray-50/40 transition-colors">
-                                                            <td className="p-10">
-                                                                <p className="font-bold text-gray-900 text-lg leading-tight">{req.title}</p>
-                                                                <p className="text-[11px] text-gray-400 mt-1 font-medium">{req.requested_by}</p>
-                                                            </td>
-                                                            <td className="p-10">
+                                                        <tr key={req.id}>
+                                                            <td className="p-6"><p className="font-bold">{req.title}</p></td>
+                                                            <td className="p-6">
                                                                 <div className="relative inline-block has-tooltip">
-                                                                    <select 
-                                                                        value={req.assigned_to} 
-                                                                        onChange={(e) => updateRequest(req.id, 'assigned_to', e.target.value, req.assigned_to)}
-                                                                        className={`bg-gray-50 border-2 border-transparent rounded-xl px-4 py-2.5 text-xs font-black uppercase outline-none transition-all ${req.reassignment_log ? 'border-blue-200 text-blue-700' : 'text-gray-900'}`}
-                                                                    >
+                                                                    <select value={req.assigned_to} onChange={(e) => updateRequest(req.id, 'assigned_to', e.target.value, req.assigned_to)} className="bg-gray-50 rounded-lg px-3 py-1.5 text-[10px] font-black uppercase border-none">
                                                                         {TEAM.map(t => <option key={t}>{t}</option>)}
                                                                     </select>
-                                                                    {req.reassignment_log && <div className="tooltip italic">{req.reassignment_log}</div>}
+                                                                    {req.reassignment_log && <div className="tooltip">{req.reassignment_log}</div>}
                                                                 </div>
-                                                            </td>
-                                                            <td className="p-10 text-right">
-                                                                <select 
-                                                                    value={req.status}
-                                                                    onChange={(e) => updateRequest(req.id, 'status', e.target.value)}
-                                                                    className="bg-gray-900 text-white rounded-xl px-5 py-2.5 text-[10px] font-black uppercase tracking-widest outline-none"
-                                                                >
-                                                                    <option>Ny</option><option>I arbeid</option><option>Venter</option><option>Fullført</option>
-                                                                </select>
                                                             </td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
                                             </table>
                                         </div>
-                                    ) : (
-                                        <div className="space-y-10">
-                                            <div className="glass-card p-12 rounded-[3.5rem] border-blue-50">
-                                                <h3 className="text-xs font-black uppercase text-gray-400 mb-8 tracking-[0.2em]">Global Broadcast</h3>
-                                                <div className="flex gap-4">
-                                                    <input id="alertInput" defaultValue={globalAlert} className="flex-1 bg-gray-50 rounded-2xl px-8 py-5 text-sm font-bold outline-none border-2 border-transparent focus:border-blue-100 transition-all" placeholder="Viktig melding til alle..." />
-                                                    <button onClick={() => saveAlert(document.getElementById('alertInput').value)} className="bg-gray-900 text-white px-10 py-5 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-gray-800 transition-all shadow-xl">Lagre Varsel</button>
+                                    )}
+
+                                    {adminSubView === 'insights' && (
+                                        <div className="space-y-6">
+                                            {insights.map(item => (
+                                                <div key={item.id} className="bg-white p-8 rounded-3xl card-shadow space-y-4">
+                                                    <h4 className="font-black text-xs uppercase text-blue-600 tracking-widest">Modul {item.id}</h4>
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <input defaultValue={item.title} onBlur={(e) => updateInsight(item.id, 'title', e.target.value)} className="p-3 bg-gray-50 rounded-xl text-sm font-bold outline-none" placeholder="Tittel" />
+                                                        <input defaultValue={item.tag} onBlur={(e) => updateInsight(item.id, 'tag', e.target.value)} className="p-3 bg-gray-50 rounded-xl text-sm font-bold outline-none" placeholder="Tag (f.eks SALG)" />
+                                                        <textarea defaultValue={item.description} onBlur={(e) => updateInsight(item.id, 'description', e.target.value)} className="col-span-2 p-3 bg-gray-50 rounded-xl text-sm h-20 outline-none" placeholder="Beskrivelse"></textarea>
+                                                        <input defaultValue={item.button_text} onBlur={(e) => updateInsight(item.id, 'button_text', e.target.value)} className="p-3 bg-gray-50 rounded-xl text-sm outline-none" placeholder="Knappetekst" />
+                                                        <select defaultValue={item.color} onChange={(e) => updateInsight(item.id, 'color', e.target.value)} className="p-3 bg-gray-50 rounded-xl text-sm outline-none">
+                                                            <option value="blue">IKEA Blå</option>
+                                                            <option value="black">Sort</option>
+                                                        </select>
+                                                    </div>
                                                 </div>
-                                            </div>
-
-                                            <div className="glass-card rounded-[3.5rem] overflow-hidden">
-                                                <table className="w-full text-left">
-                                                    <tbody className="divide-y divide-gray-50">
-                                                        {reports.map(r => (
-                                                            <tr key={r.id}>
-                                                                <td className="p-10">
-                                                                    <p className="font-bold text-gray-900 text-lg leading-tight">{r.name}</p>
-                                                                    <p className="text-[10px] text-gray-400 font-black uppercase tracking-widest mt-1">{r.category}</p>
-                                                                </td>
-                                                                <td className="p-10 flex justify-end gap-3 items-center">
-                                                                    {['grønn', 'gul', 'rød'].map(s => (
-                                                                        <button key={s} onClick={() => updateStatus(r.id, s)} className={`w-10 h-10 rounded-2xl bg-${s === 'grønn' ? 'green' : s === 'gul' ? 'amber' : 'red'}-500 ${r.status === s ? 'ring-4 ring-offset-4 scale-110 shadow-lg' : 'opacity-20 hover:opacity-40'}`}></button>
-                                                                    ))}
-                                                                    <div className="w-px h-8 bg-gray-100 mx-6"></div>
-                                                                    <button onClick={() => deleteStatus(r.id)} className="text-gray-300 hover:text-red-500 transition-colors p-2">🗑️</button>
-                                                                </td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-
-                                            <div className="glass-card p-12 rounded-[3.5rem]">
-                                                <h3 className="text-xs font-black uppercase text-gray-400 mb-8 tracking-[0.2em]">Publiser Driftsstatus</h3>
-                                                <form onSubmit={addNewStatus} className="grid grid-cols-2 gap-6">
-                                                    <input name="name" placeholder="Navn på tjeneste/rapport" className="bg-gray-50 rounded-2xl px-6 py-4 text-sm font-bold outline-none border-2 border-transparent focus:border-blue-50 transition-all" required />
-                                                    <input name="category" placeholder="Kategori (f.eks Retail)" className="bg-gray-50 rounded-2xl px-6 py-4 text-sm font-bold outline-none border-2 border-transparent focus:border-blue-50 transition-all" required />
-                                                    <button className="col-span-2 bg-blue-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-100">Opprett Status ➜</button>
-                                                </form>
-                                            </div>
+                                            ))}
                                         </div>
                                     )}
                                 </div>
                             )}
+
                         </div>
                     </main>
                 </div>
