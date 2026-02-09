@@ -13,7 +13,6 @@
     <style>
         body { font-family: 'Plus Jakarta Sans', sans-serif; letter-spacing: -0.025em; background-color: #fcfcfd; color: #101828; margin: 0; }
         
-        /* FIKSET SIDEBAR-KNAPP */
         .sidebar-item { 
             transition: all 0.2s ease; 
             border-radius: 12px; 
@@ -32,7 +31,7 @@
         }
 
         .sidebar-active { background-color: #f5f8ff; color: #0058AB !important; font-weight: 700; box-shadow: inset 4px 0 0 -1px #0058AB; }
-        .glass-card { background: white; border: 1px solid #f0f2f5; border-radius: 2.5rem; transition: all 0.3s ease; }
+        .glass-card { background: white; border: 1px solid #f0f2f5; border-radius: 3rem; transition: all 0.3s ease; }
         .btn-clickable { cursor: pointer; transition: all 0.2s; border: none; }
         .btn-clickable:active { transform: scale(0.98); }
         .input-field { background-color: #f0f4f9; border: none; border-radius: 12px; padding: 16px; width: 100%; outline: none; font-weight: 500; }
@@ -43,7 +42,7 @@
         .status-dot-mini { width: 6px; height: 6px; background-color: #ef4444; border-radius: 50%; display: inline-block; margin-left: 6px; }
         
         .hero-image-side { 
-            background-image: url('image_4f4b52.jpg'); 
+            background-image: url('https://mgkhhsiwnndsy rrakdho.supabase.co/storage/v1/object/public/assets/image_4f4b52.jpg'.replace(/\s/g, '')); 
             background-size: cover; 
             background-position: center;
             height: 100vh;
@@ -105,9 +104,9 @@
 
             const getStaffStyles = (name) => {
                 switch(name) {
-                    case 'Ikke tildelt': return { bg: 'bg-red-50', text: 'text-red-500', border: 'border-l-red-500' };
+                    case 'Ikke tildelt': return { bg: 'bg-red-50', text: 'text-red-500', border: 'border-l-[#0058AB]' };
                     case 'Henrik': return { bg: 'bg-blue-50', text: 'text-[#0058AB]', border: 'border-l-[#0058AB]' };
-                    case 'Marthe': return { bg: 'bg-orange-50', text: 'text-orange-600', border: 'border-l-orange-500' };
+                    case 'Marthe': return { bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-l-orange-500' };
                     case 'Karolina': return { bg: 'bg-purple-50', text: 'text-purple-600', border: 'border-l-purple-500' };
                     default: return { bg: 'bg-gray-50', text: 'text-gray-500', border: 'border-l-gray-300' };
                 }
@@ -135,7 +134,7 @@
                                             resolved_at: new Date().toISOString()
                                         });
                                         setActiveDecision(null);
-                                    }} className={`flex-[2] py-4 rounded-2xl font-black text-white ${activeDecision.status === 'Rejected' ? 'bg-red-500' : 'bg-emerald-500'}`}>Bekreft</button>
+                                    }} className={`flex-[2] py-4 rounded-2xl font-black text-white ${activeDecision.status === 'Rejected' ? 'bg-red-500' : 'bg-[#10b981]'}`}>Bekreft</button>
                                 </div>
                             </div>
                         </div>
@@ -149,14 +148,14 @@
                         <nav className="flex-1">
                             <NavItem active={view === 'dashboard'} onClick={() => setView('dashboard')} icon="👤" label="Min side" />
                             <NavItem active={view === 'live'} onClick={() => setView('live')} icon="🛰️" label="Live Ops" />
-                            <NavItem active={view === 'insights'} onClick={() => setView('insights'} icon="💡" label="Insight Engine" />
+                            <NavItem active={view === 'insights'} onClick={() => setView('insights')} icon="💡" label="Insight Engine" />
                             <div className="mx-8 border-t border-gray-100 my-4"></div>
                             <NavItem active={view === 'access'} onClick={() => setView('access')} icon="🔑" label="Be om tilgang" />
                             <NavItem active={view === 'new'} onClick={() => setView('new')} icon="✨" label="Ny forespørsel" />
                             <NavItem active={view === 'error'} onClick={() => setView('error')} icon="⚠️" label="Rapporter feil" />
                             <div className="mx-8 border-t border-gray-100 my-4"></div>
                             {user.email === 'henrik.h.wiik@gmail.com' && (
-                                <button onClick={() => setView('admin')} className={`sidebar-item px-6 py-4 font-bold ${view === 'admin' ? 'sidebar-active' : 'text-red-500'}`}>
+                                <button onClick={() => setView('admin')} className={`sidebar-item px-6 py-4 font-bold ${view === 'admin' ? 'sidebar-active' : 'text-[#0058AB]'}`}>
                                     🛡️ Control Center {totalAlerts > 0 && <span className="badge-pill">{totalAlerts}</span>}
                                 </button>
                             )}
@@ -302,22 +301,22 @@
                             <div key={req.id} className={`glass-card p-8 flex justify-between items-center border-l-[12px] ${s.border} mb-4 shadow-sm`}>
                                 <div className="flex-1 pr-4"><h5 className="font-black text-xl">{req.title}</h5><p className="text-[10px] font-bold text-gray-400 uppercase">{req.requested_by}</p></div>
                                 <div className="flex items-center gap-4">
-                                    <select value={req.assigned_to} onChange={e => onUpdate('requests', req.id, {assigned_to: e.target.value})} className={`p-3 rounded-xl text-xs font-black min-w-[140px] border-none outline-none ${s.bg} ${s.text}`}>
+                                    <select value={req.assigned_to} onChange={e => onUpdate('requests', req.id, {assigned_to: e.target.value})} className={`p-3 px-5 rounded-xl text-xs font-black min-w-[140px] border-none outline-none ${s.bg} ${s.text}`}>
                                         <option>Ikke tildelt</option><option>Henrik</option><option>Marthe</option><option>Karolina</option>
                                     </select>
-                                    <button onClick={() => onDecide(req.id, 'Completed')} className="bg-emerald-500 text-white px-8 py-4 rounded-xl font-black text-[11px] btn-clickable">LØS</button>
-                                    <button onClick={() => onDecide(req.id, 'Rejected')} className="bg-red-500 text-white px-8 py-4 rounded-xl font-black text-[11px] btn-clickable">AVSLÅ</button>
+                                    <button onClick={() => onDecide(req.id, 'Completed')} className="bg-[#10b981] text-white px-8 py-4 rounded-xl font-black text-[11px] btn-clickable uppercase">Løs</button>
+                                    <button onClick={() => onDecide(req.id, 'Rejected')} className="bg-[#ef4444] text-white px-8 py-4 rounded-xl font-black text-[11px] btn-clickable uppercase">Avslå</button>
                                 </div>
                             </div>
                         );
                     })}
 
                     {subView === 'Access' && requests.filter(r => r.status === 'Open' && r.type === 'ACCESS').map(req => (
-                        <div key={req.id} className="glass-card p-8 flex justify-between items-center border-l-[12px] border-l-amber-400 mb-4 shadow-sm">
+                        <div key={req.id} className="glass-card p-8 flex justify-between items-center border-l-[12px] border-l-[#0058AB] mb-4 shadow-sm">
                             <div className="flex-1 pr-6"><h5 className="font-black text-xl">{req.title}</h5><p className="text-[10px] font-bold text-gray-400 uppercase">{req.requested_by}</p></div>
                             <div className="flex gap-4">
-                                <button onClick={() => onDecide(req.id, 'Completed')} className="bg-emerald-500 text-white px-8 py-4 rounded-xl font-black text-[11px] btn-clickable">GODKJENN</button>
-                                <button onClick={() => onDecide(req.id, 'Rejected')} className="bg-red-500 text-white px-8 py-4 rounded-xl font-black text-[11px] btn-clickable">AVSLÅ</button>
+                                <button onClick={() => onDecide(req.id, 'Completed')} className="bg-[#10b981] text-white px-8 py-4 rounded-xl font-black text-[11px] btn-clickable uppercase">Godkjenn</button>
+                                <button onClick={() => onDecide(req.id, 'Rejected')} className="bg-[#ef4444] text-white px-8 py-4 rounded-xl font-black text-[11px] btn-clickable uppercase">Avslå</button>
                             </div>
                         </div>
                     ))}
@@ -337,28 +336,6 @@
                             </div>
                         );
                     })}
-
-                    {subView === 'Live' && systems.map(s => (
-                        <div key={s.id} className="glass-card p-8 bg-white mb-6 space-y-4 shadow-sm">
-                            <div className="flex gap-4">
-                                <input defaultValue={s.system_name} onBlur={e => onUpdate('system_status', s.id, {system_name: e.target.value})} className="input-field font-bold" />
-                                <select value={s.status} onChange={e => onUpdate('system_status', s.id, {status: e.target.value})} className="input-field w-40 font-black uppercase text-xs">
-                                    <option value="online">Online</option><option value="degraded">Degradert</option>
-                                </select>
-                            </div>
-                            <input defaultValue={s.status_message} onBlur={e => onUpdate('system_status', s.id, {status_message: e.target.value})} className="input-field italic" placeholder="Statusmelding..." />
-                        </div>
-                    ))}
-
-                    {subView === 'Insights' && insights.map(i => (
-                        <div key={i.id} className="glass-card p-8 bg-white mb-6 space-y-4 shadow-sm">
-                            <div className="flex justify-between items-center border-b pb-4">
-                                <h5 className="font-black text-xl">Insight Card: {i.title}</h5>
-                                <input type="checkbox" checked={i.is_active} onChange={e => onUpdate('insights', i.id, {is_active: e.target.checked})} className="w-6 h-6 accent-[#0058AB]" />
-                            </div>
-                            <input defaultValue={i.image_url} onBlur={e => onUpdate('insights', i.id, {image_url: e.target.value})} className="input-field" placeholder="Bildelink (URL)" />
-                        </div>
-                    ))}
                 </div>
             );
         };
@@ -403,16 +380,12 @@
 
             const handleAuth = async (e) => {
                 e.preventDefault();
-                setMessage('');
                 if (mode === 'login') {
                     const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: pass });
                     if (data.user) onLogin(data.user); else setMessage("Feil e-post eller passord.");
                 } else if (mode === 'signup') {
                     const { error } = await supabaseClient.auth.signUp({ email, password: pass });
                     if (error) setMessage(error.message); else setMessage("Bruker opprettet! Sjekk e-post.");
-                } else if (mode === 'forgot') {
-                    const { error } = await supabaseClient.auth.resetPasswordForEmail(email);
-                    if (error) setMessage(error.message); else setMessage("Nullstilling sendt til e-post.");
                 }
             };
 
@@ -424,19 +397,17 @@
                             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">Experience Design Portal</p>
                         </div>
                         <div className="flex gap-6 mb-8 border-b border-gray-100">
-                            <button onClick={() => { setMode('login'); setMessage(''); }} className={`pb-4 text-xs font-black uppercase tracking-widest transition-all ${mode === 'login' ? 'text-[#0058AB] border-b-2 border-[#0058AB]' : 'text-gray-300'}`}>Logg inn</button>
-                            <button onClick={() => { setMode('signup'); setMessage(''); }} className={`pb-4 text-xs font-black uppercase tracking-widest transition-all ${mode === 'signup' ? 'text-[#0058AB] border-b-2 border-[#0058AB]' : 'text-gray-300'}`}>Lag bruker</button>
+                            <button onClick={() => setMode('login')} className={`pb-4 text-xs font-black uppercase tracking-widest ${mode === 'login' ? 'text-[#0058AB] border-b-2 border-[#0058AB]' : 'text-gray-300'}`}>Logg inn</button>
+                            <button onClick={() => setMode('signup')} className={`pb-4 text-xs font-black uppercase tracking-widest ${mode === 'signup' ? 'text-[#0058AB] border-b-2 border-[#0058AB]' : 'text-gray-300'}`}>Lag bruker</button>
                         </div>
                         <form onSubmit={handleAuth} className="space-y-4">
                             <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="input-field" placeholder="E-postadresse" required />
-                            {mode !== 'forgot' && <input type="password" value={pass} onChange={e => setPass(e.target.value)} className="input-field" placeholder="Passord" required />}
-                            {message && <p className="text-xs font-bold p-3 rounded-lg bg-blue-50 text-blue-600">{message}</p>}
+                            <input type="password" value={pass} onChange={e => setPass(e.target.value)} className="input-field" placeholder="Passord" required />
+                            {message && <p className="text-xs font-bold text-blue-600">{message}</p>}
                             <button className="bg-[#0058AB] text-white p-5 rounded-2xl font-black uppercase tracking-widest w-full shadow-lg mt-4 btn-clickable">
-                                {mode === 'login' ? 'Logg inn ➜' : mode === 'signup' ? 'Opprett konto ➜' : 'Nullstill ➜'}
+                                {mode === 'login' ? 'Logg inn ➜' : 'Opprett konto ➜'}
                             </button>
                         </form>
-                        {mode === 'login' && <button onClick={() => setMode('forgot')} className="mt-6 text-[10px] font-black uppercase text-gray-400 hover:text-[#0058AB]">Glemt passord?</button>}
-                        {mode === 'forgot' && <button onClick={() => setMode('login')} className="mt-6 text-[10px] font-black uppercase text-[#0058AB]">Tilbake</button>}
                     </div>
                     <div className="flex-1 hero-image-side"></div>
                 </div>
