@@ -83,6 +83,7 @@
 
             return (
                 <div className="flex min-h-screen">
+                    {/* Beslutningsmodal */}
                     {activeDecision && (
                         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
                             <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-md shadow-2xl">
@@ -128,9 +129,27 @@
                             {view === 'dashboard' && <DashboardView requests={requests} user={user} />}
                             {view === 'live' && <LiveView systems={systems} />}
                             {view === 'insights' && <InsightsView insights={insights} />}
-                            {view === 'access' && <FormView title="Be om tilgang" placeholder="Hva trenger du tilgang til?" onSubmit={(v) => submitRequest('ACCESS', v)} />}
-                            {view === 'new' && <FormView title="Ny forespørsel" placeholder="Hva trenger du hjelp med?" onSubmit={(v) => submitRequest('TASK', v)} />}
-                            {view === 'error' && <FormView title="Rapporter feil" placeholder="Beskriv feilen..." onSubmit={(v) => submitRequest('ERROR', v)} />}
+                            
+                            {view === 'access' && (
+                                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                    <h2 className="text-4xl font-black italic mb-10">Be om tilgang</h2>
+                                    <div className="glass-card p-10 bg-white shadow-xl">
+                                        <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 ml-2">Velg system</p>
+                                        <select id="accessSelect" className="input-field mb-6 text-xl appearance-none">
+                                            <option>PowerBI - Salgsdata</option>
+                                            <option>Adobe Experience Manager</option>
+                                            <option>Lagerbeholdning Global</option>
+                                            <option>HCS Admin</option>
+                                            <option>Annet</option>
+                                        </select>
+                                        <button onClick={() => submitRequest('ACCESS', document.getElementById('accessSelect').value)} className="bg-[#0058AB] text-white px-10 py-5 rounded-2xl font-black uppercase tracking-widest btn-clickable">Send forespørsel ➜</button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {view === 'new' && <FormView title="Ny forespørsel" placeholder="Beskriv hva du trenger hjelp til..." onSubmit={(v) => submitRequest('TASK', v)} />}
+                            {view === 'error' && <FormView title="Rapporter feil" placeholder="Hva fungerer ikke som det skal?" onSubmit={(v) => submitRequest('ERROR', v)} />}
+
                             {view === 'admin' && (
                                 <AdminPanel 
                                     requests={requests} systems={systems} insights={insights} 
@@ -154,6 +173,7 @@
         const DashboardView = ({ requests, user }) => (
             <div className="space-y-8 animate-in fade-in duration-500">
                 <h2 className="text-4xl font-black italic">Min side</h2>
+                {requests.filter(r => r.requested_by === user.email).length === 0 && <p className="text-gray-400 italic">Ingen aktive saker.</p>}
                 {requests.filter(r => r.requested_by === user.email).map(req => (
                     <div key={req.id} className="glass-card p-8 flex justify-between items-center bg-white border-l-8 border-l-blue-500 shadow-sm">
                         <div>
@@ -213,8 +233,9 @@
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                     <h2 className="text-4xl font-black italic mb-10">{title}</h2>
                     <div className="glass-card p-10 bg-white shadow-xl">
+                        <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 ml-2">Beskrivelse</p>
                         <textarea value={val} onChange={(e) => setVal(e.target.value)} className="w-full h-40 bg-gray-50 rounded-3xl p-8 outline-none text-xl font-medium mb-6" placeholder={placeholder}></textarea>
-                        <button onClick={() => { onSubmit(val); setVal(''); }} className="bg-[#0058AB] text-white px-10 py-5 rounded-2xl font-black uppercase tracking-widest btn-clickable">Send inn ➜</button>
+                        <button onClick={() => { if(val.trim()){ onSubmit(val); setVal(''); } }} className="bg-[#0058AB] text-white px-10 py-5 rounded-2xl font-black uppercase tracking-widest btn-clickable">Send inn ➜</button>
                     </div>
                 </div>
             );
