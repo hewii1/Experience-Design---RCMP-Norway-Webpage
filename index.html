@@ -22,8 +22,8 @@
         .admin-tab-bar { background-color: #f3f4f6; padding: 6px; border-radius: 18px; display: inline-flex; gap: 4px; }
         .admin-tab { padding: 8px 20px; border-radius: 12px; font-size: 12px; font-weight: 700; transition: all 0.2s; cursor: pointer; border: none; display: flex; align-items: center; }
         .admin-tab-active { background-color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.05); color: #101828; }
-        .modal-overlay { background: rgba(16, 24, 40, 0.4); backdrop-filter: blur(4px); position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 24px; }
         .input-field { background-color: #f0f4f9; border: none; border-radius: 12px; padding: 16px; width: 100%; outline: none; font-weight: 500; }
+        .experience-yellow { color: #FFB800; font-weight: 800; }
     </style>
 </head>
 <body>
@@ -36,17 +36,15 @@
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1na2hoc2l3bm5kc3lycmFrZGhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA1ODkwMDksImV4cCI6MjA4NjE2NTAwOX0.gIeRH6Ckck-K59-zUi7G3KeB0hoCR0bjpQ5h4W9Ec6Y';
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        const TEAM = ['Ikke tildelt', 'Henrik', 'Marthe', 'Karolina'];
-
         const App = () => {
             const [user, setUser] = useState(null);
+            const [isRegistering, setIsRegistering] = useState(false);
             const [loading, setLoading] = useState(true);
             const [view, setView] = useState('dashboard');
             const [adminSubView, setAdminSubView] = useState('Tasks');
             const [requests, setRequests] = useState([]);
             const [email, setEmail] = useState('');
             const [password, setPassword] = useState('');
-            const [activeDecision, setActiveDecision] = useState(null);
 
             useEffect(() => {
                 const init = async () => {
@@ -62,77 +60,73 @@
                 setRequests(data || []);
             };
 
+            const handleAuth = async (e) => {
+                e.preventDefault();
+                if (isRegistering) {
+                    const { data, error } = await supabaseClient.auth.signUp({ email, password });
+                    if (error) alert(error.message); else alert("Sjekk e-posten din for bekreftelse!");
+                } else {
+                    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+                    if (error) alert("Feil e-post eller passord"); else { setUser(data.user); fetchData(); }
+                }
+            };
+
             const handleLogout = async () => {
                 await supabaseClient.auth.signOut();
                 setUser(null);
                 setView('dashboard');
             };
 
-            const updateDb = async (id, updates) => {
-                await supabaseClient.from('requests').update(updates).eq('id', id);
-                fetchData();
-            };
-
-            const finalizeDecision = async (reason) => {
-                await supabaseClient.from('requests').update({ 
-                    status: activeDecision.status, 
-                    admin_reason: reason,
-                    completed_at: new Date().toLocaleString('no-NO')
-                }).eq('id', activeDecision.id);
-                setActiveDecision(null);
-                fetchData();
-            };
-
-            const unassignedTasks = useMemo(() => requests.filter(r => r.type !== 'ACCESS' && r.status === 'Open' && r.assigned_to === 'Ikke tildelt'), [requests]);
-            const openAccess = useMemo(() => requests.filter(r => r.type === 'ACCESS' && r.status === 'Open'), [requests]);
-            const totalAlerts = unassignedTasks.length + openAccess.length;
+            const totalAlerts = useMemo(() => {
+                return requests.filter(r => r.status === 'Open' && (r.type === 'ACCESS' || r.assigned_to === 'Ikke tildelt')).length;
+            }, [requests]);
 
             if (loading) return null;
 
             if (!user) return (
                 <div className="flex h-screen w-screen overflow-hidden">
-                    <div className="w-[480px] bg-white p-20 flex flex-col justify-center">
-                        <h1 className="text-4xl font-black mb-2 italic text-slate-900">RCMP</h1>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-10">Experience Design Portal</p>
-                        <form onSubmit={async (e) => { e.preventDefault(); const {data} = await supabaseClient.auth.signInWithPassword({email, password}); if(data.user) { setUser(data.user); fetchData(); } }} className="space-y-5">
+                    <div className="w-[550px] bg-white p-24 flex flex-col justify-center relative z-10">
+                        <div className="mb-12">
+                            <h1 className="text-6xl font-black italic text-slate-900 tracking-tighter leading-none">RCMP</h1>
+                            <p className="text-sm mt-2 font-black uppercase tracking-widest experience-yellow">Experience Design</p>
+                        </div>
+                        
+                        <h2 className="text-2xl font-bold mb-6">{isRegistering ? 'Opprett konto' : 'Velkommen tilbake'}</h2>
+                        
+                        <form onSubmit={handleAuth} className="space-y-4">
                             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="input-field" placeholder="E-post" required />
                             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="input-field" placeholder="Passord" required />
-                            <button className="bg-[#0058AB] text-white p-5 rounded-2xl font-black uppercase tracking-widest btn-clickable w-full">Logg inn</button>
+                            <button className="bg-[#0058AB] text-white p-5 rounded-2xl font-black uppercase tracking-widest btn-clickable w-full mt-4">
+                                {isRegistering ? 'Registrer deg ➜' : 'Logg inn ➜'}
+                            </button>
                         </form>
+
+                        <button onClick={() => setIsRegistering(!isRegistering)} className="mt-8 text-xs font-bold text-slate-400 uppercase tracking-widest hover:text-slate-900 transition-colors">
+                            {isRegistering ? 'Har du allerede konto? Logg inn' : 'Ny her? Lag en bruker'}
+                        </button>
                     </div>
-                    <div className="flex-1 bg-[#0058AB]"></div>
+                    <div className="flex-1 bg-[#0058AB] relative overflow-hidden">
+                        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent"></div>
+                    </div>
                 </div>
             );
 
             return (
                 <div className="flex min-h-screen">
-                    {activeDecision && (
-                        <div className="modal-overlay">
-                            <div className="glass-card w-full max-w-md p-10 rounded-[2.5rem] bg-white">
-                                <h3 className="text-2xl font-black mb-4">Beslutning</h3>
-                                <textarea id="modalReason" className="w-full p-5 bg-gray-50 rounded-2xl h-32 mb-6 outline-none" placeholder="Skriv en begrunnelse..."></textarea>
-                                <div className="flex gap-4">
-                                    <button onClick={() => setActiveDecision(null)} className="flex-1 font-bold text-gray-400">Avbryt</button>
-                                    <button onClick={() => finalizeDecision(document.getElementById('modalReason').value)} className="flex-[2] py-4 rounded-2xl text-white font-black uppercase bg-gray-900">Bekreft</button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
                     <aside className="w-72 bg-white border-r fixed h-full pt-12 flex flex-col">
                         <div className="px-10 mb-8">
                             <h1 className="text-4xl font-black italic">RCMP</h1>
-                            <p className="text-[9px] font-black uppercase tracking-widest text-gray-400">Experience Design Portal</p>
+                            <p className="text-[9px] font-black uppercase tracking-widest experience-yellow">Experience Design</p>
                         </div>
                         <nav className="flex-1">
                             <button onClick={() => setView('dashboard')} className={`sidebar-item px-6 py-4 font-bold ${view === 'dashboard' ? 'sidebar-active' : ''}`}>👤 Min side</button>
                             <div className="mx-8 border-t border-gray-100 my-4"></div>
-                            <button onClick={() => setView('systems')} className="sidebar-item px-6 py-4">🛰️ Live Ops</button>
-                            <button onClick={() => setView('insights')} className="sidebar-item px-6 py-4">💡 Insight Engine</button>
+                            <button className="sidebar-item px-6 py-4">🛰️ Live Ops</button>
+                            <button className="sidebar-item px-6 py-4">💡 Insight Engine</button>
                             <div className="mx-8 border-t border-gray-100 my-4"></div>
-                            <button onClick={() => setView('access')} className="sidebar-item px-6 py-4">🔑 Be om tilgang</button>
-                            <button onClick={() => setView('new')} className="sidebar-item px-6 py-4">✨ Ny forespørsel</button>
-                            <button onClick={() => setView('error')} className="sidebar-item px-6 py-4">⚠️ Rapporter feil</button>
+                            <button className="sidebar-item px-6 py-4">🔑 Be om tilgang</button>
+                            <button className="sidebar-item px-6 py-4">✨ Ny forespørsel</button>
+                            <button className="sidebar-item px-6 py-4">⚠️ Rapporter feil</button>
                             <div className="mx-8 border-t border-gray-100 my-4"></div>
                             {user.email === 'henrik.h.wiik@gmail.com' && (
                                 <button onClick={() => setView('admin')} className={`sidebar-item px-6 py-4 font-bold ${view === 'admin' ? 'sidebar-active' : 'text-red-500'}`}>
@@ -144,69 +138,12 @@
                     </aside>
 
                     <main className="flex-1 ml-72 p-16">
-                        {view === 'admin' && (
-                            <div className="max-w-5xl mx-auto space-y-10">
-                                <div className="admin-tab-bar">
-                                    <button onClick={() => setAdminSubView('Tasks')} className={`admin-tab ${adminSubView === 'Tasks' ? 'admin-tab-active' : 'text-gray-500'}`}>
-                                        Tasks {unassignedTasks.length > 0 && <span className="red-dot"></span>}
-                                    </button>
-                                    <button onClick={() => setAdminSubView('Access')} className={`admin-tab ${adminSubView === 'Access' ? 'admin-tab-active' : 'text-gray-500'}`}>
-                                        Access {openAccess.length > 0 && <span className="red-dot"></span>}
-                                    </button>
-                                    {['Live', 'Insights', 'Log'].map(t => (
-                                        <button key={t} onClick={() => setAdminSubView(t)} className={`admin-tab ${adminSubView === t ? 'admin-tab-active' : 'text-gray-500'}`}>{t}</button>
-                                    ))}
-                                </div>
-
-                                {adminSubView === 'Tasks' && TEAM.map(member => {
-                                    const tasks = requests.filter(r => r.type !== 'ACCESS' && r.status === 'Open' && r.assigned_to === member);
-                                    if (tasks.length === 0 && member !== 'Ikke tildelt') return null;
-                                    return (
-                                        <div key={member} className="mb-10 space-y-4">
-                                            <h4 className="text-[10px] font-black uppercase tracking-widest text-gray-400 px-4">{member} ({tasks.length})</h4>
-                                            {tasks.map(req => (
-                                                <div key={req.id} className="glass-card p-8 rounded-[2.5rem] flex justify-between items-center bg-white shadow-sm border-l-8 border-l-blue-500">
-                                                    <div><h5 className="font-black text-xl">{req.title}</h5><p className="text-xs font-bold text-gray-400">{req.requested_by}</p></div>
-                                                    <div className="flex gap-4">
-                                                        <select value={req.assigned_to} onChange={(e) => updateDb(req.id, {assigned_to: e.target.value})} className="bg-gray-50 p-3 rounded-xl text-[10px] font-black uppercase outline-none">
-                                                            {TEAM.map(t => <option key={t} value={t}>{t}</option>)}
-                                                        </select>
-                                                        <button onClick={() => setActiveDecision({id: req.id, status: 'Completed'})} className="bg-emerald-500 text-white px-8 py-3 rounded-xl font-black uppercase text-[10px] btn-clickable shadow-md">GODKJENN</button>
-                                                        <button onClick={() => setActiveDecision({id: req.id, status: 'Rejected'})} className="bg-red-500 text-white px-8 py-3 rounded-xl font-black uppercase text-[10px] btn-clickable shadow-md">AVSLÅ</button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    );
-                                })}
-
-                                {adminSubView === 'Access' && openAccess.map(req => (
-                                    <div key={req.id} className="glass-card p-8 rounded-[2.5rem] flex justify-between items-center bg-white shadow-sm mb-4">
-                                        <div><h5 className="font-black text-xl">{req.title}</h5><p className="text-xs font-bold text-gray-400 italic">{req.requested_by}</p></div>
-                                        <div className="flex gap-4">
-                                            <button onClick={() => setActiveDecision({id: req.id, status: 'Approved'})} className="bg-emerald-500 text-white px-8 py-3 rounded-xl font-black uppercase text-[10px] btn-clickable shadow-md">GODKJENN</button>
-                                            <button onClick={() => setActiveDecision({id: req.id, status: 'Rejected'})} className="bg-red-500 text-white px-8 py-3 rounded-xl font-black uppercase text-[10px] btn-clickable shadow-md">AVSLÅ</button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
-                        {view === 'dashboard' && (
-                            <div className="max-w-5xl mx-auto space-y-8">
-                                <h2 className="text-4xl font-black italic">Min side</h2>
-                                {requests.filter(r => r.requested_by === user.email).map(req => (
-                                    <div key={req.id} className="glass-card p-8 rounded-[2.5rem] flex justify-between items-center bg-white shadow-sm">
-                                        <div>
-                                            <span className="text-[9px] font-black uppercase px-2 py-1 bg-blue-50 text-blue-600 rounded mb-2 inline-block">{req.status}</span>
-                                            <h3 className="text-xl font-black">{req.title}</h3>
-                                            {req.admin_reason && <p className="text-sm italic text-blue-600 mt-2">"{req.admin_reason}"</p>}
-                                        </div>
-                                        <div className="text-xs font-bold text-gray-200">#{req.id}</div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                        <div className="max-w-5xl mx-auto">
+                            <h2 className="text-4xl font-black italic">
+                                {view === 'admin' ? 'Control Center' : 'Min side'}
+                            </h2>
+                            {/* Innhold her */}
+                        </div>
                     </main>
                 </div>
             );
