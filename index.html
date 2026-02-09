@@ -41,7 +41,6 @@
 
         const TEAM = ['Ikke tildelt', 'Henrik', 'Marthe', 'Karolina'];
 
-        // Gjenbrukbar logo-komponent for å sikre lik stil overalt
         const Logo = ({ light = false }) => (
             <div className="select-none">
                 <h1 className={`font-black text-3xl tracking-tighter leading-none ${light ? 'text-white' : 'text-gray-900'}`}>RCMP</h1>
@@ -148,15 +147,14 @@
 
             return (
                 <div className="flex min-h-screen">
-                    {/* SIDEBAR MED OPPDATERT LOGO */}
                     <aside className="w-72 bg-white border-r border-gray-100 flex flex-col fixed h-full z-20">
                         <div className="p-10 mb-4">
                             <Logo />
                         </div>
                         <nav className="flex-1 space-y-1">
                             <button onClick={() => setView('dashboard')} className={`w-[calc(100%-16px)] flex items-center gap-3 px-6 py-4 text-sm font-bold sidebar-item ${view === 'dashboard' ? 'sidebar-active' : 'text-gray-400 hover:text-gray-600'}`}>📊 Oversikt</button>
-                            <button onClick={() => setView('new')} className={`w-[calc(100%-16px)] flex items-center gap-3 px-6 py-4 text-sm font-bold sidebar-item ${view === 'new' ? 'sidebar-active' : 'text-gray-400 hover:text-gray-600'}`}>✨ Bestilling</button>
-                            <button onClick={() => setView('error')} className={`w-[calc(100%-16px)] flex items-center gap-3 px-6 py-4 text-sm font-bold sidebar-item ${view === 'error' ? 'sidebar-active' : 'text-gray-400 hover:text-gray-600'}`}>⚠️ Feilrapport</button>
+                            <button onClick={() => setView('new')} className={`w-[calc(100%-16px)] flex items-center gap-3 px-6 py-4 text-sm font-bold sidebar-item ${view === 'new' ? 'sidebar-active' : 'text-gray-400 hover:text-gray-600'}`}>✨ Ny forespørsel</button>
+                            <button onClick={() => setView('error')} className={`w-[calc(100%-16px)] flex items-center gap-3 px-6 py-4 text-sm font-bold sidebar-item ${view === 'error' ? 'sidebar-active' : 'text-gray-400 hover:text-gray-600'}`}>⚠️ Rapporter feil</button>
                             {isAdmin && (
                                 <div className="mt-8 pt-8 border-t border-gray-50">
                                     <p className="px-10 text-[9px] font-black text-gray-300 uppercase tracking-widest mb-2">Kontroll</p>
@@ -188,7 +186,6 @@
                                         </div>
                                     </div>
 
-                                    {/* ADMIN TABELLER (UTILDELTE & TILDELTE) */}
                                     <div className="space-y-10">
                                         <section>
                                             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-600 mb-4 flex items-center gap-2">
@@ -251,7 +248,7 @@
                             ) : (
                                 <div>
                                     <h2 className="text-4xl font-black tracking-tighter text-gray-900 mb-10">
-                                        {view === 'dashboard' ? 'Aktive saker' : view === 'new' ? 'Ny bestilling' : 'Rapporter feil'}
+                                        {view === 'dashboard' ? 'Dine saker' : view === 'new' ? 'Ny forespørsel' : 'Noe som ikke fungerer?'}
                                     </h2>
                                     
                                     {view === 'dashboard' && (
@@ -261,7 +258,7 @@
                                                     <div className="text-3xl mb-4 opacity-30">☕</div>
                                                     <h3 className="text-xl font-bold text-gray-900 mb-2">Ingen aktive saker</h3>
                                                     <p className="text-gray-400 text-sm mb-8">Trenger du hjelp med noe nytt?</p>
-                                                    <button onClick={() => setView('new')} className="ikea-blue text-white px-8 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] btn-animate shadow-md">Ny bestilling</button>
+                                                    <button onClick={() => setView('new')} className="ikea-blue text-white px-8 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] btn-animate shadow-md">Send en forespørsel</button>
                                                 </div>
                                             ) : (
                                                 userRequests.map(req => (
@@ -284,11 +281,11 @@
                                         <form onSubmit={handleSubmit} className="bg-white p-12 rounded-[2.5rem] card-shadow max-w-xl space-y-8">
                                             <div className="space-y-2">
                                                 <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Tittel</label>
-                                                <input name="title" placeholder="Hva gjelder det?" className="w-full p-4 bg-gray-50 rounded-xl outline-none font-bold text-base border-none" required />
+                                                <input name="title" placeholder={view === 'error' ? "Hvilket system gjelder det?" : "Hva trenger du hjelp med?"} className="w-full p-4 bg-gray-50 rounded-xl outline-none font-bold text-base border-none" required />
                                             </div>
                                             <div className="space-y-2">
                                                 <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Beskrivelse</label>
-                                                <textarea name="description" placeholder="Utdyp her..." className="w-full p-4 bg-gray-50 rounded-xl h-40 outline-none font-medium text-sm border-none" required></textarea>
+                                                <textarea name="description" placeholder="Gi oss litt mer detaljer..." className="w-full p-4 bg-gray-50 rounded-xl h-40 outline-none font-medium text-sm border-none" required></textarea>
                                             </div>
                                             <button className={`w-full py-4 rounded-xl font-black uppercase tracking-widest text-[10px] btn-animate shadow-xl ${view === 'error' ? 'bg-red-600 text-white' : 'ikea-blue text-white'}`}>
                                                 Send forespørsel ➜
