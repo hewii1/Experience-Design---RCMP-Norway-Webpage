@@ -21,9 +21,16 @@
         .admin-tab-bar { background-color: #f3f4f6; padding: 6px; border-radius: 22px; display: inline-flex; gap: 4px; }
         .admin-tab { padding: 10px 24px; border-radius: 18px; font-size: 13px; font-weight: 700; transition: all 0.2s; cursor: pointer; border: none; position: relative; color: #64748b; }
         .admin-tab-active { background-color: white; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); color: #101828; }
-        .hero-gradient { background: linear-gradient(135deg, #004d99 0%, #0058AB 100%); position: relative; }
         .badge-pill { background-color: #ef4444; color: white; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 20px; position: absolute; right: 12px; display: flex; align-items: center; justify-content: center; line-height: 1; }
         .status-dot-mini { width: 6px; height: 6px; background-color: #ef4444; border-radius: 50%; display: inline-block; margin-left: 6px; }
+        
+        /* Ny stil for bakgrunnsbildet på innlogging */
+        .hero-image-side { 
+            background-image: url('image_4f4b52.jpg'); 
+            background-size: cover; 
+            background-position: center;
+            position: relative;
+        }
     </style>
 </head>
 <body>
@@ -170,24 +177,29 @@
         );
 
         const AccessForm = ({ onSubmit }) => {
-            const [sel, setSel] = useState('RCMP Performance Tool');
+            const [sel, setSel] = useState('Happy Customer Score');
             const [rea, setRea] = useState('');
             return (
                 <div className="animate-in fade-in duration-500">
                     <h2 className="text-4xl font-black italic mb-10 text-[#0058AB]">Be om tilgang</h2>
                     <div className="glass-card p-10 shadow-xl bg-white">
-                        <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 ml-2">System eller rapport</p>
+                        <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 ml-2">Velg rapport eller app</p>
                         <select value={sel} onChange={e => setSel(e.target.value)} className="input-field mb-6 text-xl appearance-none cursor-pointer">
-                            <optgroup label="Applikasjoner">
-                                <option>RCMP Performance Tool</option>
-                                <option>Customer Insight Norway</option>
+                            <optgroup label="RCMP Performance (App)">
                                 <option>Happy Customer Score</option>
+                                <option>Authorisation Performance Tool</option>
+                                <option>Median Performance Tool</option>
+                                <option>BackOffice FollowUp</option>
+                            </optgroup>
+                            <optgroup label="Customer Insight Norway (App)">
+                                <option>Comensation</option>
+                                <option>SAC</option>
+                                <option>After Sales</option>
+                                <option>Repeated Calls</option>
                             </optgroup>
                             <optgroup label="Enkeltstående rapporter">
-                                <option>Workspace Planning Q3</option>
-                                <option>Sustainability Tracker 2024</option>
-                                <option>Staffing Efficiency Report</option>
-                                <option>Local Market Analysis - Oslo</option>
+                                <option>Workspace: Planning, Scheduling and Intraday</option>
+                                <option>Shrinkage Report - RCMP Norway</option>
                             </optgroup>
                         </select>
                         <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 ml-2">Begrunnelse</p>
@@ -216,22 +228,26 @@
         const DashboardView = ({ requests, user, getStaffStyles }) => (
             <div className="space-y-8 animate-in fade-in duration-500">
                 <h2 className="text-4xl font-black italic text-[#0058AB]">Min side</h2>
-                {requests.filter(r => r.requested_by === user.email).map(req => {
-                    const s = getStaffStyles(req.assigned_to);
-                    return (
-                        <div key={req.id} className={`glass-card p-8 flex justify-between items-center border-l-[12px] ${s.border} shadow-sm`}>
-                            <div className="flex-1 pr-6">
-                                <span className={`text-[9px] font-black uppercase px-2 py-1 rounded ${req.status === 'Open' ? 'bg-blue-50 text-blue-600' : (req.status === 'Rejected' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600')}`}>
-                                    {req.status === 'Open' ? 'Behandles' : (req.status === 'Rejected' ? 'Avvist' : 'Fullført')}
-                                </span>
-                                <h3 className="text-xl font-black mt-2">{req.title}</h3>
-                                {req.admin_reason && <p className="text-sm italic text-blue-600 mt-2 font-medium">"{req.admin_reason}"</p>}
-                                <p className="text-[10px] text-gray-400 font-bold mt-2">Meldt: {new Date(req.created_at).toLocaleString('no-NO')}</p>
+                {requests.filter(r => r.requested_by === user.email).length === 0 ? (
+                   <p className="text-gray-400 italic">Du har ingen aktive forespørsler.</p>
+                ) : (
+                    requests.filter(r => r.requested_by === user.email).map(req => {
+                        const s = getStaffStyles(req.assigned_to);
+                        return (
+                            <div key={req.id} className={`glass-card p-8 flex justify-between items-center border-l-[12px] ${s.border} shadow-sm mb-6`}>
+                                <div className="flex-1 pr-6">
+                                    <span className={`text-[9px] font-black uppercase px-2 py-1 rounded ${req.status === 'Open' ? 'bg-blue-50 text-blue-600' : (req.status === 'Rejected' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600')}`}>
+                                        {req.status === 'Open' ? 'Behandles' : (req.status === 'Rejected' ? 'Avvist' : 'Fullført')}
+                                    </span>
+                                    <h3 className="text-xl font-black mt-2">{req.title}</h3>
+                                    {req.admin_reason && <p className="text-sm italic text-blue-600 mt-2 font-medium">"{req.admin_reason}"</p>}
+                                    <p className="text-[10px] text-gray-400 font-bold mt-2">Meldt: {new Date(req.created_at).toLocaleString('no-NO')}</p>
+                                </div>
+                                <div className="text-right"><p className="text-[10px] font-black text-gray-400 uppercase">Saksbehandler</p><p className={`font-black ${s.text}`}>{req.assigned_to}</p></div>
                             </div>
-                            <div className="text-right"><p className="text-[10px] font-black text-gray-400 uppercase">Saksbehandler</p><p className={`font-black ${s.text}`}>{req.assigned_to}</p></div>
-                        </div>
-                    );
-                })}
+                        );
+                    })
+                )}
             </div>
         );
 
@@ -378,19 +394,18 @@
                 if (data.user) onLogin(data.user); else alert("Feil pålogging.");
             };
             return (
-                <div className="flex h-screen w-screen bg-white">
-                    <div className="w-[450px] p-16 flex flex-col justify-center">
+                <div className="flex h-screen w-screen bg-white overflow-hidden">
+                    <div className="w-[450px] p-16 flex flex-col justify-center bg-white z-10 shadow-2xl">
                         <h1 className="text-4xl font-black italic mb-2 text-[#0058AB]">RCMP</h1>
                         <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-10">Experience Design Portal</p>
                         <form onSubmit={handleLogin} className="space-y-4">
                             <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="input-field" placeholder="E-post" required />
                             <input type="password" value={pass} onChange={e => setPass(e.target.value)} className="input-field" placeholder="Passord" required />
-                            <button className="bg-[#0058AB] text-white p-5 rounded-2xl font-black uppercase tracking-widest w-full shadow-lg mt-4">Logg inn ➜</button>
+                            <button className="bg-[#0058AB] text-white p-5 rounded-2xl font-black uppercase tracking-widest w-full shadow-lg mt-4 btn-clickable">Logg inn ➜</button>
                         </form>
                     </div>
-                    <div className="flex-1 hero-gradient flex items-center justify-center">
-                        <div className="text-center"><h2 className="text-amber-400 text-7xl font-black italic drop-shadow-2xl">Experience Design</h2><p className="text-white font-bold tracking-[0.5em] mt-4 opacity-60">NORWAY HUB</p></div>
-                    </div>
+                    {/* Her er den oppdaterte høyre siden med bildet ditt */}
+                    <div className="flex-1 hero-image-side"></div>
                 </div>
             );
         };
