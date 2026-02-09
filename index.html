@@ -14,7 +14,7 @@
         body { font-family: 'Plus Jakarta Sans', sans-serif; letter-spacing: -0.025em; background-color: #fcfcfd; color: #101828; margin: 0; }
         .sidebar-item { transition: all 0.2s ease; border-radius: 12px; margin: 2px 12px; display: flex; align-items: center; width: calc(100% - 24px); position: relative; cursor: pointer; border: none; background: transparent; text-align: left; }
         .sidebar-active { background-color: #f5f8ff; color: #0058AB !important; font-weight: 700; box-shadow: inset 4px 0 0 -1px #0058AB; }
-        .glass-card { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid #f0f2f5; }
+        .glass-card { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid #f0f2f5; transition: transform 0.2s ease; }
         .login-gradient { background: #0058AB; }
         .input-field { background-color: #f0f4f9; border: none; border-radius: 12px; padding: 16px; width: 100%; outline: none; font-weight: 500; }
         .btn-clickable { cursor: pointer; width: 100%; display: block; text-align: center; transition: all 0.2s; border: none; }
@@ -38,6 +38,14 @@
 
         const TEAM = ['Ikke tildelt', 'Henrik', 'Marthe', 'Karolina'];
         const REPORTS = ['Salgsoversikt Retail', 'Lagerbeholdning Global', 'Kundetilfredshet (CSAT)', 'Logistikk Dashboard', 'Annet'];
+
+        // Fargemapping for teamet
+        const TEAM_COLORS = {
+            'Ikke tildelt': { border: 'border-l-red-500', dot: 'bg-red-500', btn: 'bg-red-500', light: 'bg-red-50/20' },
+            'Henrik': { border: 'border-l-blue-500', dot: 'bg-blue-500', btn: 'bg-blue-600', light: 'bg-blue-50/10' },
+            'Marthe': { border: 'border-l-emerald-500', dot: 'bg-emerald-500', btn: 'bg-emerald-600', light: 'bg-emerald-50/10' },
+            'Karolina': { border: 'border-l-purple-500', dot: 'bg-purple-500', btn: 'bg-purple-600', light: 'bg-purple-50/10' }
+        };
 
         const App = () => {
             const [user, setUser] = useState(null);
@@ -228,10 +236,12 @@
                                                 const memberTasks = requests.filter(r => r.type !== 'ACCESS' && r.status === 'Open' && r.assigned_to === member);
                                                 if (memberTasks.length === 0 && member !== 'Ikke tildelt') return null;
 
+                                                const config = TEAM_COLORS[member] || TEAM_COLORS['Ikke tildelt'];
+
                                                 return (
                                                     <div key={member} className="space-y-5">
                                                         <div className="flex items-center gap-3 px-2">
-                                                            <div className={`w-2 h-2 rounded-full ${member === 'Ikke tildelt' ? 'bg-red-500' : 'bg-blue-400'}`}></div>
+                                                            <div className={`w-2 h-2 rounded-full ${config.dot}`}></div>
                                                             <h4 className="text-[11px] font-black uppercase tracking-[0.2em] text-gray-400">
                                                                 {member === 'Ikke tildelt' ? 'Ufordelte oppgaver' : `Oppgaver til ${member}`}
                                                                 <span className="ml-2 text-gray-300">({memberTasks.length})</span>
@@ -239,7 +249,7 @@
                                                         </div>
                                                         <div className="space-y-3">
                                                             {memberTasks.length > 0 ? memberTasks.map(req => (
-                                                                <div key={req.id} className={`glass-card p-6 rounded-[2.2rem] flex justify-between items-center border-l-4 ${member === 'Ikke tildelt' ? 'border-l-red-500 bg-red-50/20' : 'border-l-blue-400'}`}>
+                                                                <div key={req.id} className={`glass-card p-6 rounded-[2.2rem] flex justify-between items-center border-l-4 ${config.border} ${member === 'Ikke tildelt' ? config.light : ''}`}>
                                                                     <div>
                                                                         <h5 className="font-black text-lg text-gray-800">{req.title}</h5>
                                                                         <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{req.requested_by} • <span className="text-blue-500">{req.type}</span></p>
@@ -249,8 +259,8 @@
                                                                             {TEAM.map(t => <option key={t} value={t}>{t}</option>)}
                                                                         </select>
                                                                         <div className="flex gap-2">
-                                                                            <button onClick={() => setActiveDecision({id: req.id, status: 'Completed'})} className="bg-[#0058AB] text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase btn-clickable w-auto shadow-sm">Løs</button>
-                                                                            <button onClick={() => setActiveDecision({id: req.id, status: 'Rejected'})} className="bg-red-500 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase btn-clickable w-auto shadow-sm">Avslå</button>
+                                                                            <button onClick={() => setActiveDecision({id: req.id, status: 'Completed'})} className={`${config.btn} text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase btn-clickable w-auto shadow-sm`}>Løs</button>
+                                                                            <button onClick={() => setActiveDecision({id: req.id, status: 'Rejected'})} className="bg-gray-100 text-gray-400 hover:bg-red-500 hover:text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase btn-clickable w-auto shadow-sm">Avslå</button>
                                                                         </div>
                                                                     </div>
                                                                 </div>
