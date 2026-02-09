@@ -16,11 +16,8 @@
         .sidebar-item { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); border-radius: 10px; margin: 2px 12px; }
         .sidebar-active { background-color: #f5f8ff; color: #0058AB !important; font-weight: 700; box-shadow: inset 4px 0 0 -1px #0058AB; }
         .glass-card { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(235, 238, 242, 1); box-shadow: 0 4px 12px -2px rgba(16, 24, 40, 0.04); }
-        .status-dot { width: 8px; height: 8px; border-radius: 50%; position: relative; }
-        .status-dot::after { content: ''; position: absolute; inset: -4px; border-radius: 50%; opacity: 0.3; background: inherit; animation: pulse 2s infinite; }
-        @keyframes pulse { 0% { transform: scale(1); opacity: 0.4; } 100% { transform: scale(2.5); opacity: 0; } }
         .btn-animate { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
-        .btn-animate:active { transform: scale(0.98); }
+        .btn-animate:active { transform: scale(0.95); }
     </style>
 </head>
 <body>
@@ -35,12 +32,18 @@
         
         const TEAM = ['Ikke tildelt', 'Henrik', 'Marthe', 'Karolina'];
 
+        const Logo = () => (
+            <div className="px-10 mb-8 select-none">
+                <h1 className="text-4xl font-black tracking-tighter italic text-gray-900 leading-none">RCMP</h1>
+                <p className="text-[9px] font-black uppercase tracking-[0.3em] text-gray-400 mt-1.5">Experience Design</p>
+            </div>
+        );
+
         const App = () => {
             const [user, setUser] = useState(null);
             const [view, setView] = useState('dashboard');
             const [adminSubView, setAdminSubView] = useState('tasks');
             const [requests, setRequests] = useState([]);
-            const [reports, setReports] = useState([]);
             const [insights, setInsights] = useState([]);
 
             useEffect(() => {
@@ -50,10 +53,8 @@
 
             const fetchData = async () => {
                 const reqs = await supabaseClient.from('requests').select('*').order('created_at', { ascending: false });
-                const reps = await supabaseClient.from('reports').select('*').order('category', { ascending: true });
                 const ins = await supabaseClient.from('insights').select('*').order('id', { ascending: true });
                 setRequests(reqs.data || []);
-                setReports(reps.data || []);
                 setInsights(ins.data || []);
             };
 
@@ -64,71 +65,65 @@
 
             const isAdmin = user && ['henrik.h.wiik@gmail.com', 'marthe.epost@ingka.ikea.com', 'karolina.epost@ingka.ikea.com'].includes(user.email);
 
-            if (!user) return <div className="p-20 text-center font-bold italic">RCMP.</div>;
+            if (!user) return <div className="p-20 text-center font-bold italic uppercase tracking-widest text-gray-300">Loading RCMP...</div>;
+
+            const activeInsights = insights.filter(i => i.is_active);
 
             return (
                 <div className="flex min-h-screen">
-                    {/* SIDEBAR */}
-                    <aside className="w-72 bg-white border-r border-gray-100 flex flex-col fixed h-full z-20">
-                        <div className="p-10 mb-2">
-                            <h1 className="text-2xl font-black tracking-tighter italic text-gray-900">RCMP.</h1>
-                            <div className="h-1 w-8 ikea-blue mt-1"></div>
-                        </div>
-
+                    <aside className="w-72 bg-white border-r border-gray-100 flex flex-col fixed h-full z-20 pt-12">
+                        <Logo />
                         <nav className="flex-1">
-                            <button onClick={() => setView('dashboard')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'dashboard' ? 'sidebar-active' : 'text-gray-500 hover:text-gray-900'}`}>🏠 Min side</button>
+                            <button onClick={() => setView('dashboard')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'dashboard' ? 'sidebar-active' : 'text-gray-500'}`}>🏠 Min side</button>
                             <div className="my-6 mx-8 border-t border-gray-100"></div>
-                            <p className="px-10 text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Hovedmeny</p>
-                            <button onClick={() => setView('systems')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'systems' ? 'sidebar-active' : 'text-gray-500 hover:text-gray-900'}`}>🛰️ Live Operations</button>
-                            <button onClick={() => setView('insights')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'insights' ? 'sidebar-active' : 'text-gray-500 hover:text-gray-900'}`}>💡 Insight Engine</button>
-                            <button onClick={() => setView('kb')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'kb' ? 'sidebar-active' : 'text-gray-500 hover:text-gray-900'}`}>📚 Knowledge Base</button>
-                            <div className="my-6 mx-8 border-t border-gray-50"></div>
-                            <button onClick={() => setView('new')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'new' ? 'sidebar-active' : 'text-gray-500 hover:text-gray-900'}`}>✨ Ny forespørsel</button>
+                            <button onClick={() => setView('insights')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'insights' ? 'sidebar-active' : 'text-gray-500'}`}>💡 Insight Engine</button>
+                            <button onClick={() => setView('new')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-semibold sidebar-item ${view === 'new' ? 'sidebar-active' : 'text-gray-500'}`}>✨ Ny forespørsel</button>
                             {isAdmin && (
-                                <div className="mt-8 pt-8 border-t border-gray-50">
-                                    <button onClick={() => setView('admin')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-bold sidebar-item ${view === 'admin' ? 'sidebar-active' : 'text-red-400 hover:text-red-500'}`}>🛡️ Control Center</button>
+                                <div className="mt-8 pt-8 border-t border-gray-100">
+                                    <button onClick={() => setView('admin')} className={`w-[calc(100%-24px)] flex items-center gap-3 px-6 py-3.5 text-sm font-bold sidebar-item ${view === 'admin' ? 'sidebar-active' : 'text-red-400'}`}>🛡️ Control Center</button>
                                 </div>
                             )}
                         </nav>
                     </aside>
 
-                    {/* MAIN CONTENT */}
                     <main className="flex-1 ml-72 p-16">
                         <div className="max-w-5xl mx-auto">
                             
-                            {/* VIEW: DASHBOARD */}
                             {view === 'dashboard' && (
                                 <div className="space-y-12">
                                     <h2 className="text-5xl font-extrabold tracking-tight text-gray-900">Min side</h2>
                                     <div className="grid grid-cols-1 gap-4">
                                         {requests.filter(r => r.requested_by === user.email).map(req => (
-                                            <div key={req.id} className="glass-card p-8 rounded-[2.5rem] flex justify-between items-center group">
+                                            <div key={req.id} className="glass-card p-8 rounded-[2.5rem] flex justify-between items-center border border-gray-50">
                                                 <div>
                                                     <span className="bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">{req.type}</span>
                                                     <h3 className="text-2xl font-black mt-3 text-gray-900">{req.title}</h3>
-                                                    <p className="text-sm text-gray-400 font-medium">Saksbehandler: {req.assigned_to}</p>
+                                                    <p className="text-sm text-gray-400 font-medium italic">Saksbehandler: {req.assigned_to}</p>
                                                 </div>
-                                                <span className="bg-gray-900 text-white px-8 py-4 rounded-2xl text-[10px] font-black uppercase">{req.status}</span>
+                                                <span className="bg-gray-900 text-white px-8 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest">{req.status}</span>
                                             </div>
                                         ))}
                                     </div>
                                 </div>
                             )}
 
-                            {/* VIEW: INSIGHT ENGINE (DINE BOBLER) */}
                             {view === 'insights' && (
                                 <div className="space-y-12">
                                     <h2 className="text-5xl font-extrabold tracking-tight text-gray-900">Insight Engine</h2>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                        {insights.map(item => (
-                                            <div key={item.id} className="glass-card p-10 rounded-[3rem] flex flex-col justify-between min-h-[350px]">
+                                    <div className={`grid gap-6 ${
+                                        activeInsights.length <= 2 ? 'grid-cols-1 md:grid-cols-2' : 
+                                        activeInsights.length === 3 ? 'grid-cols-1 md:grid-cols-3' : 
+                                        activeInsights.length === 4 ? 'grid-cols-2' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
+                                    }`}>
+                                        {activeInsights.map((item, idx) => (
+                                            <div key={item.id} className={`glass-card p-10 rounded-[3rem] flex flex-col justify-between min-h-[320px] ${activeInsights.length === 5 && idx < 2 ? 'md:col-span-1.5' : ''}`}>
                                                 <div>
                                                     <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">{item.tag}</span>
-                                                    <h3 className="text-3xl font-black mt-4 mb-4 text-gray-900">{item.title}</h3>
-                                                    <p className="text-gray-500 font-medium leading-relaxed">{item.description}</p>
+                                                    <h3 className="text-2xl font-black mt-4 mb-4 text-gray-900 leading-tight">{item.title}</h3>
+                                                    <p className="text-gray-500 font-medium text-sm leading-relaxed line-clamp-4">{item.description}</p>
                                                 </div>
-                                                <button style={{backgroundColor: item.color_hex}} className="w-fit text-white px-8 py-4 rounded-2xl font-bold text-sm btn-animate self-start">
-                                                    {item.button_text} ➜
+                                                <button style={{backgroundColor: item.color_hex}} className="mt-8 w-full text-white py-4 rounded-2xl font-bold text-xs uppercase tracking-widest btn-animate">
+                                                    {item.button_text}
                                                 </button>
                                             </div>
                                         ))}
@@ -136,30 +131,50 @@
                                 </div>
                             )}
 
-                            {/* VIEW: ADMIN CONTROL CENTER */}
-                            {view === 'admin' && (
-                                <div className="space-y-10">
-                                    <div className="flex gap-4 p-1 bg-gray-100 rounded-2xl w-fit">
-                                        <button onClick={() => setAdminSubView('tasks')} className={`px-6 py-2 rounded-xl text-xs font-bold ${adminSubView === 'tasks' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>Oppgaver</button>
-                                        <button onClick={() => setAdminSubView('insights')} className={`px-6 py-2 rounded-xl text-xs font-bold ${adminSubView === 'insights' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}>Insight Engine</button>
-                                    </div>
-
-                                    {adminSubView === 'insights' && (
-                                        <div className="grid grid-cols-1 gap-6">
-                                            {insights.map(item => (
-                                                <div key={item.id} className="glass-card p-8 rounded-[2rem] space-y-4">
-                                                    <h4 className="font-bold text-blue-600">Rediger Boble #{item.id}</h4>
-                                                    <div className="grid grid-cols-2 gap-4">
-                                                        <input defaultValue={item.title} onBlur={(e) => updateInsight(item.id, 'title', e.target.value)} className="p-4 bg-white/50 border border-gray-100 rounded-xl outline-none focus:border-blue-300" placeholder="Tittel" />
-                                                        <input defaultValue={item.tag} onBlur={(e) => updateInsight(item.id, 'tag', e.target.value)} className="p-4 bg-white/50 border border-gray-100 rounded-xl outline-none focus:border-blue-300" placeholder="Tag" />
-                                                        <textarea defaultValue={item.description} onBlur={(e) => updateInsight(item.id, 'description', e.target.value)} className="col-span-2 p-4 bg-white/50 border border-gray-100 rounded-xl outline-none focus:border-blue-300 h-24" placeholder="Beskrivelse"></textarea>
-                                                        <input defaultValue={item.button_text} onBlur={(e) => updateInsight(item.id, 'button_text', e.target.value)} className="p-4 bg-white/50 border border-gray-100 rounded-xl outline-none focus:border-blue-300" placeholder="Knappetekst" />
-                                                        <input type="color" defaultValue={item.color_hex} onChange={(e) => updateInsight(item.id, 'color_hex', e.target.value)} className="h-full w-full bg-transparent border-none cursor-pointer" />
-                                                    </div>
+                            {view === 'admin' && adminSubView === 'insights' && (
+                                <div className="space-y-8">
+                                    <h2 className="text-3xl font-black">Styr Insight Engine</h2>
+                                    <div className="grid grid-cols-1 gap-4">
+                                        {insights.map(item => (
+                                            <div key={item.id} className="glass-card p-6 rounded-3xl flex items-center gap-6">
+                                                <input type="checkbox" checked={item.is_active} onChange={(e) => updateInsight(item.id, 'is_active', e.target.checked)} className="w-6 h-6 rounded" />
+                                                <div className="grid grid-cols-4 gap-4 flex-1">
+                                                    <input defaultValue={item.title} onBlur={(e) => updateInsight(item.id, 'title', e.target.value)} className="bg-white border p-3 rounded-xl text-xs font-bold" placeholder="Tittel" />
+                                                    <input defaultValue={item.tag} onBlur={(e) => updateInsight(item.id, 'tag', e.target.value)} className="bg-white border p-3 rounded-xl text-xs font-bold" placeholder="Tag" />
+                                                    <input defaultValue={item.button_text} onBlur={(e) => updateInsight(item.id, 'button_text', e.target.value)} className="bg-white border p-3 rounded-xl text-xs font-bold" placeholder="Knapp" />
+                                                    <input type="color" defaultValue={item.color_hex} onChange={(e) => updateInsight(item.id, 'color_hex', e.target.value)} className="w-full h-10 rounded-xl" />
+                                                    <textarea defaultValue={item.description} onBlur={(e) => updateInsight(item.id, 'description', e.target.value)} className="col-span-4 bg-white border p-3 rounded-xl text-xs" placeholder="Beskrivelse"></textarea>
                                                 </div>
-                                            ))}
-                                        </div>
-                                    )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <button onClick={() => setAdminSubView('tasks')} className="text-sm font-bold text-blue-600">← Tilbake til oppgaver</button>
+                                </div>
+                            )}
+
+                            {view === 'admin' && adminSubView === 'tasks' && (
+                                <div className="space-y-6">
+                                    <div className="flex justify-between items-center">
+                                        <h2 className="text-3xl font-black">Oppgavebehandling</h2>
+                                        <button onClick={() => setAdminSubView('insights')} className="bg-gray-900 text-white px-6 py-2 rounded-xl text-xs font-bold">Admin Insights Engine</button>
+                                    </div>
+                                    <div className="glass-card rounded-[2rem] overflow-hidden">
+                                        <table className="w-full text-left">
+                                            <tbody className="divide-y divide-gray-50">
+                                                {requests.map(req => (
+                                                    <tr key={req.id}>
+                                                        <td className="p-6 font-bold">{req.title}</td>
+                                                        <td className="p-6 text-xs text-gray-400">{req.requested_by}</td>
+                                                        <td className="p-6">
+                                                            <select value={req.assigned_to} onChange={(e) => updateInsight(req.id, 'assigned_to', e.target.value)} className="bg-gray-50 p-2 rounded-lg text-[10px] font-black uppercase">
+                                                                {TEAM.map(t => <option key={t}>{t}</option>)}
+                                                            </select>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             )}
                         </div>
