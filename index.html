@@ -17,9 +17,10 @@
         .sidebar-item { transition: all 0.2s ease; border-radius: 12px; margin: 0 12px; }
         .sidebar-active { background-color: #f0f4f8; color: #0058AB !important; font-weight: 800; }
         .card-shadow { box-shadow: 0 4px 20px rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.05); }
-        .unassigned-row { border-left: 4px solid #FFCC00; }
+        .unassigned-row { border-left: 5px solid #FFCC00; }
         .btn-animate { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
         .btn-animate:active { transform: scale(0.98); }
+        select { cursor: pointer; }
     </style>
 </head>
 <body>
@@ -32,7 +33,13 @@
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1na2hoc2l3bm5kc3lycmFrZGhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA1ODkwMDksImV4cCI6MjA4NjE2NTAwOX0.gIeRH6Ckck-K59-zUi7G3KeB0hoCR0bjpQ5h4W9Ec6Y';
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         
-        const ADMIN_EMAIL = 'henrik.h.wiik@gmail.com';
+        // --- SIKKERHET: KUN DISSE E-POSTENE HAR ADMIN-TILGANG ---
+        const ALLOWED_ADMINS = [
+            'henrik.h.wiik@gmail.com',
+            'marthe.epost@ingka.ikea.com',   // Oppdater disse
+            'karolina.epost@ingka.ikea.com'  // Oppdater disse
+        ];
+
         const TEAM = ['Ikke tildelt', 'Henrik', 'Marthe', 'Karolina'];
 
         const App = () => {
@@ -68,10 +75,10 @@
                 if (authMode === 'register') {
                     const { error } = await supabaseClient.auth.signUp({ email, password });
                     if (error) alert(error.message);
-                    else { alert("Bruker opprettet!"); setAuthMode('login'); }
+                    else { alert("Registrering fullført! Du kan nå logge inn."); setAuthMode('login'); }
                 } else {
                     const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-                    if (error) alert("Feil brukernavn eller passord.");
+                    if (error) alert("Feil e-post eller passord.");
                 }
                 setLoading(false);
             };
@@ -80,14 +87,17 @@
                 e.preventDefault();
                 setLoading(true);
                 const fd = new FormData(e.target);
+                const type = view === 'error' ? 'Feilrapport' : 'Bestilling';
+                
                 await supabaseClient.from('requests').insert([{
                     title: fd.get('title'),
                     description: fd.get('description'),
-                    type: view === 'error' ? 'Feilrapport' : 'Bestilling',
+                    type: type,
                     requested_by: user.email,
                     status: 'Ny',
                     assigned_to: 'Ikke tildelt'
                 }]);
+                
                 setLoading(false);
                 setView('dashboard');
                 fetchData();
@@ -98,49 +108,51 @@
                 fetchData();
             };
 
-            // LOGIN SKJERM (Hvis bruker ikke er logget inn)
+            // LOGG INN SKJERM
             if (!user) return (
-                <div className="min-h-screen flex flex-col md:flex-row overflow-hidden bg-white">
-                    <div className="w-full md:w-[480px] p-16 flex flex-col justify-center z-10">
+                <div className="min-h-screen flex flex-col md:flex-row bg-white">
+                    <div className="w-full md:w-[500px] p-16 flex flex-col justify-center shadow-2xl z-10 bg-white">
                         <div className="mb-12">
-                            <h1 className="font-black text-3xl tracking-tighter text-gray-900 mb-1">RCMP</h1>
-                            <p className="text-gray-400 font-bold text-[10px] uppercase tracking-[0.3em]">Experience Design Portal</p>
+                            <h1 className="font-black text-4xl tracking-tighter text-gray-900">RCMP</h1>
+                            <p className="text-gray-400 font-bold text-[10px] uppercase tracking-[0.3em] mt-1">Experience Design Portal</p>
                         </div>
 
                         <div className="flex gap-8 mb-10 border-b border-gray-100">
-                            <button onClick={() => setAuthMode('login')} className={`pb-4 text-sm font-bold transition-all ${authMode === 'login' ? 'text-black border-b-2 border-black' : 'text-gray-300'}`}>Logg inn</button>
-                            <button onClick={() => setAuthMode('register')} className={`pb-4 text-sm font-bold transition-all ${authMode === 'register' ? 'text-black border-b-2 border-black' : 'text-gray-300'}`}>Lag bruker</button>
+                            <button onClick={() => setAuthMode('login')} className={`pb-4 text-sm font-bold transition-all ${authMode === 'login' ? 'text-black border-b-2 border-black' : 'text-gray-300 hover:text-gray-400'}`}>Logg inn</button>
+                            <button onClick={() => setAuthMode('register')} className={`pb-4 text-sm font-bold transition-all ${authMode === 'register' ? 'text-black border-b-2 border-black' : 'text-gray-300 hover:text-gray-400'}`}>Lag bruker</button>
                         </div>
 
                         <form onSubmit={handleAuth} className="space-y-6">
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">E-postadresse</label>
-                                <input name="email" type="email" placeholder="navn@ikea.com" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#0058AB] font-medium transition-all" required />
+                                <input name="email" type="email" placeholder="navn@ingka.ikea.com" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#0058AB] font-medium transition-all" required />
                             </div>
                             <div className="space-y-2">
                                 <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Passord</label>
                                 <input name="password" type="password" placeholder="••••••••" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-2xl outline-none focus:ring-2 focus:ring-[#0058AB] font-medium transition-all" required />
                             </div>
                             <button disabled={loading} className="w-full ikea-blue text-white py-5 rounded-2xl font-black uppercase tracking-[0.2em] text-[11px] btn-animate shadow-xl shadow-blue-900/20 mt-4">
-                                {loading ? 'Laster...' : authMode === 'login' ? 'Gå videre ➜' : 'Opprett konto ➜'}
+                                {loading ? 'Vennligst vent...' : authMode === 'login' ? 'Logg inn ➜' : 'Opprett konto ➜'}
                             </button>
                         </form>
                     </div>
-                    <div className="hidden md:flex flex-1 login-gradient items-center justify-center p-20 relative">
+                    <div className="hidden md:flex flex-1 login-gradient items-center justify-center p-20 relative overflow-hidden">
                         <div className="text-center relative z-10">
-                            <h1 className="text-[140px] font-black text-white leading-none tracking-tighter opacity-10 select-none">RCMP</h1>
-                            <div className="mt-[-70px]">
-                                <p className="text-yellow-400 font-black text-5xl tracking-tighter italic">Experience Design</p>
-                                <p className="text-white/70 font-bold tracking-[0.6em] uppercase text-[10px] mt-6">Norway Distribution Hub</p>
+                            <h1 className="text-[160px] font-black text-white leading-none tracking-tighter opacity-10 select-none">RCMP</h1>
+                            <div className="mt-[-80px]">
+                                <p className="text-yellow-400 font-black text-6xl tracking-tighter italic drop-shadow-2xl">Experience Design</p>
+                                <p className="text-white/60 font-bold tracking-[0.6em] uppercase text-xs mt-6">Norway Hub</p>
                             </div>
                         </div>
                     </div>
                 </div>
             );
 
-            const isAdmin = user.email === ADMIN_EMAIL || user.email.includes('@ingka.ikea.com');
-            const unassignedRequests = requests.filter(r => r.assigned_to === 'Ikke tildelt');
-            const assignedRequests = requests.filter(r => {
+            const isAdmin = ALLOWED_ADMINS.includes(user.email);
+            
+            // ADMIN LOGIKK: Gruppering og Filter
+            const unassigned = requests.filter(r => r.assigned_to === 'Ikke tildelt');
+            const assigned = requests.filter(r => {
                 if (r.assigned_to === 'Ikke tildelt') return false;
                 if (adminFilter === 'Alle') return true;
                 return r.assigned_to === adminFilter;
@@ -148,64 +160,71 @@
 
             return (
                 <div className="flex min-h-screen">
+                    {/* SIDEBAR */}
                     <aside className="w-80 bg-white border-r border-gray-100 flex flex-col fixed h-full shadow-sm z-20">
                         <div className="p-12 mb-6">
-                            <h1 className="text-3xl font-black tracking-tighter">RCMP</h1>
-                            <p className="text-[10px] font-bold text-gray-300 uppercase tracking-widest mt-1">Experience Design</p>
+                            <h1 className="font-black text-3xl tracking-tighter text-gray-900">RCMP</h1>
+                            <p className="text-[10px] font-bold text-gray-300 uppercase tracking-widest mt-1">Norway</p>
                         </div>
                         <nav className="flex-1 space-y-2">
-                            <button onClick={() => setView('dashboard')} className={`w-[calc(100%-24px)] flex items-center gap-4 px-8 py-5 text-base font-bold sidebar-item ${view === 'dashboard' ? 'sidebar-active' : 'text-gray-400 hover:text-gray-600'}`}>📊 Oversikt</button>
-                            <button onClick={() => setView('new')} className={`w-[calc(100%-24px)] flex items-center gap-4 px-8 py-5 text-base font-bold sidebar-item ${view === 'new' ? 'sidebar-active' : 'text-gray-400 hover:text-gray-600'}`}>✨ Ny bestilling</button>
-                            <button onClick={() => setView('error')} className={`w-[calc(100%-24px)] flex items-center gap-4 px-8 py-5 text-base font-bold sidebar-item ${view === 'error' ? 'sidebar-active' : 'text-gray-400 hover:text-gray-600'}`}>⚠️ Rapporter feil</button>
-                            {isAdmin && <button onClick={() => setView('admin')} className={`w-[calc(100%-24px)] flex items-center gap-4 px-8 py-5 text-base font-bold sidebar-item mt-10 ${view === 'admin' ? 'sidebar-active' : 'text-gray-400 hover:text-gray-600'}`}>🛡️ Admin Panel</button>}
+                            <button onClick={() => setView('dashboard')} className={`w-[calc(100%-24px)] flex items-center gap-4 px-8 py-5 text-lg font-bold sidebar-item ${view === 'dashboard' ? 'sidebar-active' : 'text-gray-400 hover:text-gray-600'}`}>📊 Oversikt</button>
+                            <button onClick={() => setView('new')} className={`w-[calc(100%-24px)] flex items-center gap-4 px-8 py-5 text-lg font-bold sidebar-item ${view === 'new' ? 'sidebar-active' : 'text-gray-400 hover:text-gray-600'}`}>✨ Bestilling</button>
+                            <button onClick={() => setView('error')} className={`w-[calc(100%-24px)] flex items-center gap-4 px-8 py-5 text-lg font-bold sidebar-item ${view === 'error' ? 'sidebar-active' : 'text-gray-400 hover:text-gray-600'}`}>⚠️ Feilrapport</button>
+                            {isAdmin && (
+                                <div className="mt-10 pt-10 border-t border-gray-50">
+                                    <button onClick={() => setView('admin')} className={`w-[calc(100%-24px)] flex items-center gap-4 px-8 py-5 text-lg font-bold sidebar-item ${view === 'admin' ? 'sidebar-active' : 'text-gray-400 hover:text-gray-600'}`}>🛡️ Admin Panel</button>
+                                </div>
+                            )}
                         </nav>
                         <div className="p-10 border-t border-gray-50 mt-auto bg-gray-50/50">
                             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 truncate">{user.email}</p>
-                            <button onClick={() => { supabaseClient.auth.signOut(); }} className="text-[10px] font-black text-red-500 uppercase tracking-widest hover:underline">Logg ut</button>
+                            <button onClick={() => supabaseClient.auth.signOut()} className="text-[10px] font-black text-red-500 uppercase tracking-widest hover:underline">Logg ut</button>
                         </div>
                     </aside>
 
-                    <main className="flex-1 ml-80 p-20 bg-white">
+                    {/* MAIN CONTENT */}
+                    <main className="flex-1 ml-80 p-20">
                         <div className="max-w-5xl mx-auto">
-                            {view === 'admin' ? (
+                            
+                            {view === 'admin' && isAdmin ? (
                                 <div>
                                     <div className="flex justify-between items-end mb-12">
                                         <div>
                                             <h2 className="text-5xl font-black tracking-tighter text-gray-900 mb-2">Admin Panel</h2>
-                                            <p className="text-gray-400 font-medium">Håndtering av alle innkommende forespørsler.</p>
+                                            <p className="text-gray-400 font-medium">Håndtering av alle forespørsler.</p>
                                         </div>
-                                        <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                                            <label className="block text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Filtrer tildelte saker</label>
-                                            <select value={adminFilter} onChange={(e) => setAdminFilter(e.target.value)} className="bg-white border border-gray-200 rounded-xl px-4 py-2 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500">
+                                        <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100 shadow-sm">
+                                            <label className="block text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Filtrer tildelte saker</label>
+                                            <select value={adminFilter} onChange={(e) => setAdminFilter(e.target.value)} className="bg-white border border-gray-200 rounded-xl px-4 py-2 font-bold text-sm outline-none">
                                                 <option value="Alle">Vis alle tildelte</option>
                                                 {TEAM.filter(t => t !== 'Ikke tildelt').map(t => <option key={t} value={t}>{t}</option>)}
                                             </select>
                                         </div>
                                     </div>
 
-                                    {/* SEKSJON 1: UTILDELTE SAKER */}
-                                    <div className="mb-12">
-                                        <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-400 mb-6 flex items-center gap-2">
+                                    {/* GRUPPE 1: UTILDELTE (ALLTID ØVERST) */}
+                                    <div className="mb-14">
+                                        <h3 className="text-xs font-black uppercase tracking-[0.2em] text-yellow-600 mb-6 flex items-center gap-2">
                                             <span className="h-2 w-2 rounded-full bg-yellow-400 animate-pulse"></span>
-                                            Nye / Ikke tildelte ({unassignedRequests.length})
+                                            Venter på tildeling ({unassigned.length})
                                         </h3>
-                                        <div className="bg-white rounded-[2rem] card-shadow overflow-hidden border border-gray-100">
+                                        <div className="bg-white rounded-[2.5rem] card-shadow overflow-hidden border border-gray-100">
                                             <table className="w-full text-left">
                                                 <tbody className="divide-y divide-gray-50">
-                                                    {unassignedRequests.map(req => (
-                                                        <tr key={req.id} className="unassigned-row bg-yellow-50/10">
-                                                            <td className="p-6">
+                                                    {unassigned.map(req => (
+                                                        <tr key={req.id} className="unassigned-row hover:bg-yellow-50/30 transition-all">
+                                                            <td className="p-8">
                                                                 <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded ${req.type === 'Feilrapport' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>{req.type}</span>
-                                                                <p className="font-bold text-gray-900 text-lg mt-1">{req.title}</p>
-                                                                <p className="text-xs text-gray-400 font-medium">{req.requested_by}</p>
+                                                                <p className="font-bold text-gray-900 text-xl mt-1">{req.title}</p>
+                                                                <p className="text-xs text-gray-400 mt-1 font-medium italic">{req.requested_by}</p>
                                                             </td>
-                                                            <td className="p-6">
-                                                                <select value={req.status} onChange={(e) => updateField(req.id, 'status', e.target.value)} className="bg-white border border-gray-200 rounded-lg text-[10px] font-black uppercase px-3 py-1.5 shadow-sm">
+                                                            <td className="p-8">
+                                                                <select value={req.status} onChange={(e) => updateField(req.id, 'status', e.target.value)} className="bg-white border border-gray-200 rounded-xl text-[10px] font-black uppercase px-4 py-2">
                                                                     <option>Ny</option><option>I arbeid</option><option>Venter</option><option>Fullført</option>
                                                                 </select>
                                                             </td>
-                                                            <td className="p-6">
-                                                                <select value={req.assigned_to} onChange={(e) => updateField(req.id, 'assigned_to', e.target.value)} className="bg-yellow-100 text-yellow-800 border-none rounded-lg text-[10px] font-black px-3 py-1.5 w-full">
+                                                            <td className="p-8">
+                                                                <select value={req.assigned_to} onChange={(e) => updateField(req.id, 'assigned_to', e.target.value)} className="bg-yellow-100 text-yellow-800 border-none rounded-xl text-[10px] font-black px-4 py-2 w-full">
                                                                     {TEAM.map(t => <option key={t}>{t}</option>)}
                                                                 </select>
                                                             </td>
@@ -216,26 +235,25 @@
                                         </div>
                                     </div>
 
-                                    {/* SEKSJON 2: TILDELTE SAKER */}
+                                    {/* GRUPPE 2: TILDELTE (FILTRERBAR) */}
                                     <div>
-                                        <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-400 mb-6">Tildelte saker ({assignedRequests.length})</h3>
-                                        <div className="bg-white rounded-[2rem] card-shadow overflow-hidden border border-gray-100">
+                                        <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-400 mb-6">Tildelte saker ({assigned.length})</h3>
+                                        <div className="bg-white rounded-[2.5rem] card-shadow overflow-hidden border border-gray-100">
                                             <table className="w-full text-left">
                                                 <tbody className="divide-y divide-gray-50">
-                                                    {assignedRequests.map(req => (
-                                                        <tr key={req.id} className="hover:bg-gray-50/50">
-                                                            <td className="p-6">
+                                                    {assigned.map(req => (
+                                                        <tr key={req.id} className="hover:bg-gray-50/50 transition-all">
+                                                            <td className="p-8">
                                                                 <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded ${req.type === 'Feilrapport' ? 'bg-red-100 text-red-600' : 'bg-blue-100 text-blue-600'}`}>{req.type}</span>
-                                                                <p className="font-bold text-gray-900 text-lg mt-1">{req.title}</p>
-                                                                <p className="text-xs text-gray-400 font-medium">{req.requested_by}</p>
+                                                                <p className="font-bold text-gray-900 text-xl mt-1">{req.title}</p>
                                                             </td>
-                                                            <td className="p-6">
-                                                                <select value={req.status} onChange={(e) => updateField(req.id, 'status', e.target.value)} className="bg-white border border-gray-200 rounded-lg text-[10px] font-black uppercase px-3 py-1.5 shadow-sm">
+                                                            <td className="p-8 text-center">
+                                                                <select value={req.status} onChange={(e) => updateField(req.id, 'status', e.target.value)} className="bg-white border border-gray-200 rounded-xl text-[10px] font-black uppercase px-4 py-2">
                                                                     <option>Ny</option><option>I arbeid</option><option>Venter</option><option>Fullført</option>
                                                                 </select>
                                                             </td>
-                                                            <td className="p-6">
-                                                                <select value={req.assigned_to} onChange={(e) => updateField(req.id, 'assigned_to', e.target.value)} className="bg-blue-50 text-blue-700 border-none rounded-lg text-[10px] font-black px-3 py-1.5 w-full">
+                                                            <td className="p-8">
+                                                                <select value={req.assigned_to} onChange={(e) => updateField(req.id, 'assigned_to', e.target.value)} className="bg-blue-50 text-blue-700 border-none rounded-xl text-[10px] font-black px-4 py-2 w-full">
                                                                     {TEAM.map(t => <option key={t}>{t}</option>)}
                                                                 </select>
                                                             </td>
@@ -248,24 +266,40 @@
                                 </div>
                             ) : (
                                 <div>
-                                    <h2 className="text-5xl font-black tracking-tighter text-gray-900 mb-4">{view === 'dashboard' ? 'Aktive saker' : 'Ny forespørsel'}</h2>
+                                    <h2 className="text-5xl font-black tracking-tighter text-gray-900 mb-12">
+                                        {view === 'dashboard' ? 'Status' : view === 'new' ? 'Hva trenger du?' : 'Hva er feil?'}
+                                    </h2>
+                                    
                                     {view === 'dashboard' ? (
-                                        <div className="space-y-4">
+                                        <div className="space-y-6">
                                             {requests.filter(r => r.requested_by === user.email).map(req => (
-                                                <div key={req.id} className="p-8 rounded-[2rem] card-shadow bg-white flex justify-between items-center">
+                                                <div key={req.id} className="p-10 rounded-[2.5rem] card-shadow bg-white flex justify-between items-center border border-gray-50">
                                                     <div>
-                                                        <span className="text-[10px] font-black uppercase tracking-widest text-blue-600">{req.type}</span>
-                                                        <h3 className="text-2xl font-bold mt-2">{req.title}</h3>
+                                                        <span className={`text-[10px] font-black uppercase px-3 py-1 rounded-full ${req.type === 'Feilrapport' ? 'bg-red-50 text-red-500' : 'bg-blue-50 text-blue-500'}`}>{req.type}</span>
+                                                        <h3 className="text-2xl font-bold mt-4">{req.title}</h3>
+                                                        <p className="text-gray-400 text-sm mt-1">Ansvarlig: <span className="text-gray-900 font-bold">{req.assigned_to}</span></p>
                                                     </div>
-                                                    <span className="bg-gray-900 text-white px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest">{req.status}</span>
+                                                    <span className="bg-gray-900 text-white px-8 py-3 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg">{req.status}</span>
                                                 </div>
                                             ))}
                                         </div>
                                     ) : (
-                                        <form onSubmit={handleSubmit} className="bg-white p-12 rounded-[3rem] card-shadow max-w-2xl space-y-8">
-                                            <input name="title" placeholder="Tittel..." className="w-full p-6 bg-gray-50 rounded-2xl outline-none font-bold text-lg" required />
-                                            <textarea name="description" placeholder="Beskrivelse..." className="w-full p-6 bg-gray-50 rounded-2xl h-48 outline-none font-medium" required></textarea>
-                                            <button className="w-full ikea-blue text-white py-6 rounded-2xl font-black uppercase tracking-widest text-xs btn-animate shadow-xl">Send inn ➜</button>
+                                        <form onSubmit={handleSubmit} className="bg-white p-16 rounded-[3.5rem] card-shadow max-w-2xl space-y-10">
+                                            <div>
+                                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 ml-2">
+                                                    {view === 'error' ? 'Hvilket system/dashbord?' : 'Tittel på bestillingen'}
+                                                </label>
+                                                <input name="title" className="w-full p-6 bg-gray-50 rounded-2xl outline-none font-bold text-lg border-none" required />
+                                            </div>
+                                            <div>
+                                                <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 ml-2">
+                                                    {view === 'error' ? 'Beskrivelse av feilen' : 'Beskrivelse av behovet'}
+                                                </label>
+                                                <textarea name="description" className="w-full p-6 bg-gray-50 rounded-2xl h-52 outline-none font-medium border-none" required></textarea>
+                                            </div>
+                                            <button className={`w-full py-6 rounded-2xl font-black uppercase tracking-widest text-xs btn-animate shadow-2xl ${view === 'error' ? 'bg-red-600 text-white' : 'ikea-blue text-white'}`}>
+                                                Send forespørsel ➜
+                                            </button>
                                         </form>
                                     )}
                                 </div>
