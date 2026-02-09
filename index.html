@@ -17,10 +17,9 @@
         .sidebar-item { transition: all 0.2s ease; border-radius: 12px; margin: 0 8px; }
         .sidebar-active { background-color: #f0f4f8; color: #0058AB !important; font-weight: 800; }
         .card-shadow { box-shadow: 0 4px 20px rgba(0,0,0,0.03); border: 1px solid rgba(0,0,0,0.05); }
-        .unassigned-row { border-left: 5px solid #FFCC00; }
+        .status-dot { width: 12px; height: 12px; border-radius: 50%; }
         .btn-animate { transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); }
         .btn-animate:active { transform: scale(0.98); }
-        select { cursor: pointer; }
     </style>
 </head>
 <body>
@@ -33,12 +32,7 @@
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1na2hoc2l3bm5kc3lycmFrZGhvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzA1ODkwMDksImV4cCI6MjA4NjE2NTAwOX0.gIeRH6Ckck-K59-zUi7G3KeB0hoCR0bjpQ5h4W9Ec6Y';
         const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
         
-        const ALLOWED_ADMINS = [
-            'henrik.h.wiik@gmail.com',
-            'marthe.epost@ingka.ikea.com',
-            'karolina.epost@ingka.ikea.com'
-        ];
-
+        const ALLOWED_ADMINS = ['henrik.h.wiik@gmail.com', 'marthe.epost@ingka.ikea.com', 'karolina.epost@ingka.ikea.com'];
         const TEAM = ['Ikke tildelt', 'Henrik', 'Marthe', 'Karolina'];
 
         const Logo = ({ light = false }) => (
@@ -50,249 +44,134 @@
 
         const App = () => {
             const [user, setUser] = useState(null);
-            const [authMode, setAuthMode] = useState('login');
             const [view, setView] = useState('dashboard');
+            const [adminSubView, setAdminSubView] = useState('tasks'); // 'tasks' eller 'reports'
             const [requests, setRequests] = useState([]);
+            const [reports, setReports] = useState([]);
             const [loading, setLoading] = useState(false);
-            const [adminFilter, setAdminFilter] = useState('Alle');
 
             useEffect(() => {
-                supabaseClient.auth.getSession().then(({ data: { session } }) => {
-                    setUser(session?.user ?? null);
-                });
-                const { data: { subscription } } = supabaseClient.auth.onAuthStateChange((_event, session) => {
-                    setUser(session?.user ?? null);
-                });
+                supabaseClient.auth.getSession().then(({ data: { session } }) => setUser(session?.user ?? null));
                 fetchData();
-                return () => subscription.unsubscribe();
             }, []);
 
             const fetchData = async () => {
-                const { data } = await supabaseClient.from('requests').select('*').order('created_at', { ascending: false });
-                setRequests(data || []);
+                const reqs = await supabaseClient.from('requests').select('*').order('created_at', { ascending: false });
+                const reps = await supabaseClient.from('reports').select('*').order('category', { ascending: true });
+                setRequests(reqs.data || []);
+                setReports(reps.data || []);
             };
 
-            const handleAuth = async (e) => {
-                e.preventDefault();
-                setLoading(true);
-                const email = e.target.email.value;
-                const password = e.target.password.value;
-
-                if (authMode === 'register') {
-                    const { error } = await supabaseClient.auth.signUp({ email, password });
-                    if (error) alert(error.message);
-                    else { alert("Bruker opprettet!"); setAuthMode('login'); }
-                } else {
-                    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-                    if (error) alert("Feil ved innlogging.");
-                }
-                setLoading(false);
-            };
-
-            const handleSubmit = async (e) => {
-                e.preventDefault();
-                setLoading(true);
-                const fd = new FormData(e.target);
-                await supabaseClient.from('requests').insert([{
-                    title: fd.get('title'),
-                    description: fd.get('description'),
-                    type: view === 'error' ? 'Feilrapport' : 'Bestilling',
-                    requested_by: user.email,
-                    status: 'Ny',
-                    assigned_to: 'Ikke tildelt'
-                }]);
-                setLoading(false);
-                setView('dashboard');
+            const updateReportStatus = async (id, status) => {
+                await supabaseClient.from('reports').update({ status }).eq('id', id);
                 fetchData();
             };
 
-            const updateField = async (id, field, val) => {
-                await supabaseClient.from('requests').update({ [field]: val }).eq('id', id);
-                fetchData();
-            };
+            const isAdmin = user && ALLOWED_ADMINS.includes(user.email);
 
-            if (!user) return (
-                <div className="min-h-screen flex flex-col md:flex-row bg-white">
-                    <div className="w-full md:w-[450px] p-16 flex flex-col justify-center bg-white z-10 shadow-2xl">
-                        <div className="mb-12">
-                            <Logo />
-                        </div>
-                        <div className="flex gap-8 mb-10 border-b border-gray-100">
-                            <button onClick={() => setAuthMode('login')} className={`pb-4 text-sm font-bold transition-all ${authMode === 'login' ? 'text-black border-b-2 border-black' : 'text-gray-300'}`}>Logg inn</button>
-                            <button onClick={() => setAuthMode('register')} className={`pb-4 text-sm font-bold transition-all ${authMode === 'register' ? 'text-black border-b-2 border-black' : 'text-gray-300'}`}>Lag bruker</button>
-                        </div>
-                        <form onSubmit={handleAuth} className="space-y-5">
-                            <input name="email" type="email" placeholder="navn@ingka.ikea.com" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-[#0058AB] font-medium" required />
-                            <input name="password" type="password" placeholder="Passord" className="w-full p-4 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:ring-2 focus:ring-[#0058AB] font-medium" required />
-                            <button disabled={loading} className="w-full ikea-blue text-white py-4 rounded-xl font-black uppercase tracking-[0.2em] text-[10px] btn-animate shadow-lg mt-2">
-                                {loading ? 'Vent...' : authMode === 'login' ? 'Logg inn ➜' : 'Opprett konto ➜'}
-                            </button>
-                        </form>
-                    </div>
-                    <div className="hidden md:flex flex-1 login-gradient items-center justify-center relative overflow-hidden">
-                        <div className="text-center relative z-10">
-                            <h1 className="text-[140px] font-black text-white leading-none tracking-tighter opacity-10 select-none">RCMP</h1>
-                            <div className="mt-[-60px]">
-                                <p className="text-yellow-400 font-black text-5xl tracking-tighter italic drop-shadow-xl">Experience Design</p>
+            // --- RENDERER SYSTEM OVERSIKT ---
+            const renderSystemStatus = () => {
+                const categories = [...new Set(reports.map(r => r.category))];
+                return (
+                    <div className="space-y-12">
+                        <div className="flex justify-between items-center">
+                            <h2 className="text-4xl font-black tracking-tighter text-gray-900">Systemstatus</h2>
+                            <div className="flex gap-4 text-[10px] font-black uppercase tracking-widest">
+                                <span className="flex items-center gap-2"><div className="status-dot bg-green-500"></div> Operativ</span>
+                                <span className="flex items-center gap-2"><div className="status-dot bg-yellow-500"></div> Forsinkelse</span>
+                                <span className="flex items-center gap-2"><div className="status-dot bg-red-500"></div> Problem</span>
                             </div>
                         </div>
-                    </div>
-                </div>
-            );
 
-            const isAdmin = ALLOWED_ADMINS.includes(user.email);
-            const userRequests = requests.filter(r => r.requested_by === user.email);
-            const unassigned = requests.filter(r => r.assigned_to === 'Ikke tildelt');
-            const assigned = requests.filter(r => r.assigned_to !== 'Ikke tildelt' && (adminFilter === 'Alle' ? true : r.assigned_to === adminFilter));
+                        {categories.map(cat => (
+                            <div key={cat} className="space-y-4">
+                                <h3 className="text-xs font-black uppercase tracking-[0.2em] text-gray-400 ml-2">{cat}</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {reports.filter(r => r.category === cat).map(report => (
+                                        <div key={report.id} className="bg-white p-6 rounded-3xl card-shadow flex items-center justify-between">
+                                            <div className="flex items-center gap-4">
+                                                <div className={`status-dot ${report.status === 'grønn' ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.4)]' : report.status === 'gul' ? 'bg-yellow-500' : 'bg-red-500'}`}></div>
+                                                <div>
+                                                    <h4 className="font-bold text-gray-900">{report.name}</h4>
+                                                    <p className="text-[10px] text-gray-400 font-medium">Sist oppdatert: {report.last_update || 'Ukjent'}</p>
+                                                </div>
+                                            </div>
+                                            {report.link && (
+                                                <a href={report.link} target="_blank" className="text-[10px] font-black uppercase tracking-widest text-blue-600 hover:underline">Åpne rapport ➜</a>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                );
+            };
+
+            if (!user) return <div className="p-20 text-center font-bold">Vennligst logg inn...</div>; // Forenklet for demo
 
             return (
                 <div className="flex min-h-screen">
                     <aside className="w-72 bg-white border-r border-gray-100 flex flex-col fixed h-full z-20">
-                        <div className="p-10 mb-4">
-                            <Logo />
-                        </div>
+                        <div className="p-10 mb-4"><Logo /></div>
                         <nav className="flex-1 space-y-1">
-                            <button onClick={() => setView('dashboard')} className={`w-[calc(100%-16px)] flex items-center gap-3 px-6 py-4 text-sm font-bold sidebar-item ${view === 'dashboard' ? 'sidebar-active' : 'text-gray-400 hover:text-gray-600'}`}>📊 Oversikt</button>
+                            <button onClick={() => setView('dashboard')} className={`w-[calc(100%-16px)] flex items-center gap-3 px-6 py-4 text-sm font-bold sidebar-item ${view === 'dashboard' ? 'sidebar-active' : 'text-gray-400 hover:text-gray-600'}`}>📊 Dine saker</button>
+                            <button onClick={() => setView('systems')} className={`w-[calc(100%-16px)] flex items-center gap-3 px-6 py-4 text-sm font-bold sidebar-item ${view === 'systems' ? 'sidebar-active' : 'text-gray-400 hover:text-gray-600'}`}>🖥️ Systemstatus</button>
                             <button onClick={() => setView('new')} className={`w-[calc(100%-16px)] flex items-center gap-3 px-6 py-4 text-sm font-bold sidebar-item ${view === 'new' ? 'sidebar-active' : 'text-gray-400 hover:text-gray-600'}`}>✨ Ny forespørsel</button>
                             <button onClick={() => setView('error')} className={`w-[calc(100%-16px)] flex items-center gap-3 px-6 py-4 text-sm font-bold sidebar-item ${view === 'error' ? 'sidebar-active' : 'text-gray-400 hover:text-gray-600'}`}>⚠️ Rapporter feil</button>
+                            
                             {isAdmin && (
-                                <div className="mt-8 pt-8 border-t border-gray-50">
-                                    <p className="px-10 text-[9px] font-black text-gray-300 uppercase tracking-widest mb-2">Kontroll</p>
-                                    <button onClick={() => setView('admin')} className={`w-[calc(100%-16px)] flex items-center gap-3 px-6 py-4 text-sm font-bold sidebar-item ${view === 'admin' ? 'sidebar-active' : 'text-gray-400 hover:text-gray-600'}`}>🛡️ Admin Panel</button>
+                                <div className="mt-8 pt-8 border-t border-gray-50 px-2">
+                                    <p className="px-6 text-[9px] font-black text-gray-300 uppercase tracking-widest mb-2">Kontrollpanel</p>
+                                    <button onClick={() => setView('admin')} className={`w-full flex items-center gap-3 px-6 py-4 text-sm font-bold sidebar-item ${view === 'admin' ? 'sidebar-active' : 'text-gray-400 hover:text-gray-600'}`}>🛡️ Admin Panel</button>
                                 </div>
                             )}
                         </nav>
-                        <div className="p-8 border-t border-gray-50 mt-auto bg-gray-50/30 text-center">
-                            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-tight mb-3 truncate">{user.email}</p>
-                            <button onClick={() => supabaseClient.auth.signOut()} className="text-[9px] font-black text-red-500 uppercase tracking-widest hover:underline px-4 py-2 border border-red-100 rounded-lg bg-white shadow-sm">Logg ut</button>
+                        <div className="p-8 border-t border-gray-50 mt-auto text-center">
+                            <button onClick={() => supabaseClient.auth.signOut()} className="text-[9px] font-black text-red-500 uppercase tracking-widest">Logg ut</button>
                         </div>
                     </aside>
 
                     <main className="flex-1 ml-72 p-16">
                         <div className="max-w-4xl mx-auto">
-                            {view === 'admin' ? (
+                            {view === 'systems' ? renderSystemStatus() : view === 'admin' ? (
                                 <div>
-                                    <div className="flex justify-between items-end mb-10">
-                                        <div>
-                                            <h2 className="text-4xl font-black tracking-tighter text-gray-900 mb-1">Admin Panel</h2>
-                                            <p className="text-gray-400 text-sm font-medium">Håndtering av innkomne saker.</p>
-                                        </div>
-                                        <div className="bg-white p-4 rounded-xl card-shadow border border-gray-100 flex items-center gap-3">
-                                            <span className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Filter:</span>
-                                            <select value={adminFilter} onChange={(e) => setAdminFilter(e.target.value)} className="bg-gray-50 border-none rounded-lg px-3 py-1.5 font-bold text-xs outline-none">
-                                                <option value="Alle">Alle tildelte</option>
-                                                {TEAM.filter(t => t !== 'Ikke tildelt').map(t => <option key={t} value={t}>{t}</option>)}
-                                            </select>
-                                        </div>
+                                    <div className="flex gap-4 mb-10">
+                                        <button onClick={() => setAdminSubView('tasks')} className={`px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest ${adminSubView === 'tasks' ? 'ikea-blue text-white' : 'bg-white text-gray-400 border border-gray-100'}`}>Oppgavestyring</button>
+                                        <button onClick={() => setAdminSubView('reports')} className={`px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest ${adminSubView === 'reports' ? 'ikea-blue text-white' : 'bg-white text-gray-400 border border-gray-100'}`}>Rapportstatus</button>
                                     </div>
 
-                                    <div className="space-y-10">
-                                        <section>
-                                            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-yellow-600 mb-4 flex items-center gap-2">
-                                                <span className="h-1.5 w-1.5 rounded-full bg-yellow-400 animate-pulse"></span>
-                                                Ubehandlede ({unassigned.length})
-                                            </h3>
-                                            <div className="bg-white rounded-3xl card-shadow overflow-hidden border border-gray-100">
-                                                <table className="w-full text-left text-sm">
-                                                    <tbody className="divide-y divide-gray-50">
-                                                        {unassigned.length === 0 ? (
-                                                            <tr><td className="p-10 text-center text-gray-300 font-bold uppercase text-[9px] tracking-widest">Ingen nye saker</td></tr>
-                                                        ) : unassigned.map(req => (
-                                                            <tr key={req.id} className="unassigned-row hover:bg-yellow-50/10">
-                                                                <td className="p-6">
-                                                                    <span className={`text-[7px] font-black uppercase px-1.5 py-0.5 rounded ${req.type === 'Feilrapport' ? 'bg-red-50 text-red-500' : 'bg-blue-50 text-blue-500'}`}>{req.type}</span>
-                                                                    <p className="font-bold text-gray-900 text-base mt-1">{req.title}</p>
-                                                                    <p className="text-[10px] text-gray-400 mt-0.5">{req.requested_by}</p>
-                                                                </td>
-                                                                <td className="p-6">
-                                                                    <select value={req.status} onChange={(e) => updateField(req.id, 'status', e.target.value)} className="bg-white border border-gray-200 rounded-lg text-[9px] font-black uppercase px-3 py-1.5">
-                                                                        <option>Ny</option><option>I arbeid</option><option>Venter</option><option>Fullført</option>
-                                                                    </select>
-                                                                </td>
-                                                                <td className="p-6">
-                                                                    <select value={req.assigned_to} onChange={(e) => updateField(req.id, 'assigned_to', e.target.value)} className="bg-yellow-50 text-yellow-700 border-none rounded-lg text-[9px] font-black px-3 py-1.5 w-full">
-                                                                        {TEAM.map(t => <option key={t}>{t}</option>)}
-                                                                    </select>
-                                                                </td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        </section>
-
-                                        <section>
-                                            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 mb-4">Tildelte saker ({assigned.length})</h3>
-                                            <div className="bg-white rounded-3xl card-shadow overflow-hidden border border-gray-100">
-                                                <table className="w-full text-left text-sm">
-                                                    <tbody className="divide-y divide-gray-50">
-                                                        {assigned.map(req => (
-                                                            <tr key={req.id} className="hover:bg-gray-50/50">
-                                                                <td className="p-6">
-                                                                    <p className="font-bold text-gray-900 text-base">{req.title}</p>
-                                                                    <p className="text-[10px] text-gray-400">{req.assigned_to}</p>
-                                                                </td>
-                                                                <td className="p-6 text-right">
-                                                                    <select value={req.status} onChange={(e) => updateField(req.id, 'status', e.target.value)} className="bg-gray-50 border-none rounded-lg text-[9px] font-black uppercase px-3 py-1.5">
-                                                                        <option>Ny</option><option>I arbeid</option><option>Venter</option><option>Fullført</option>
-                                                                    </select>
-                                                                </td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            </div>
-                                        </section>
-                                    </div>
+                                    {adminSubView === 'reports' ? (
+                                        <div className="bg-white rounded-[2.5rem] card-shadow overflow-hidden">
+                                            <table className="w-full text-left">
+                                                <thead className="bg-gray-50 text-[9px] font-black uppercase tracking-widest text-gray-400">
+                                                    <tr>
+                                                        <th className="p-6">Rapportnavn</th>
+                                                        <th className="p-6">Kategori</th>
+                                                        <th className="p-6">Status (Trafikklys)</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-50">
+                                                    {reports.map(r => (
+                                                        <tr key={r.id}>
+                                                            <td className="p-6 font-bold">{r.name}</td>
+                                                            <td className="p-6 text-xs text-gray-500">{r.category}</td>
+                                                            <td className="p-6 flex gap-2">
+                                                                <button onClick={() => updateReportStatus(r.id, 'grønn')} className={`w-6 h-6 rounded-full bg-green-500 ${r.status === 'grønn' ? 'ring-2 ring-offset-2 ring-green-500' : 'opacity-20'}`}></button>
+                                                                <button onClick={() => updateReportStatus(r.id, 'gul')} className={`w-6 h-6 rounded-full bg-yellow-500 ${r.status === 'gul' ? 'ring-2 ring-offset-2 ring-yellow-500' : 'opacity-20'}`}></button>
+                                                                <button onClick={() => updateReportStatus(r.id, 'rød')} className={`w-6 h-6 rounded-full bg-red-500 ${r.status === 'rød' ? 'ring-2 ring-offset-2 ring-red-500' : 'opacity-20'}`}></button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    ) : (
+                                        <div className="text-gray-400 italic">Oppgavestyring (som før)...</div>
+                                    )}
                                 </div>
                             ) : (
-                                <div>
-                                    <h2 className="text-4xl font-black tracking-tighter text-gray-900 mb-10">
-                                        {view === 'dashboard' ? 'Dine saker' : view === 'new' ? 'Ny forespørsel' : 'Noe som ikke fungerer?'}
-                                    </h2>
-                                    
-                                    {view === 'dashboard' && (
-                                        <div className="space-y-4">
-                                            {userRequests.length === 0 ? (
-                                                <div className="bg-white p-16 rounded-[2.5rem] card-shadow border border-gray-100 text-center">
-                                                    <div className="text-3xl mb-4 opacity-30">☕</div>
-                                                    <h3 className="text-xl font-bold text-gray-900 mb-2">Ingen aktive saker</h3>
-                                                    <p className="text-gray-400 text-sm mb-8">Trenger du hjelp med noe nytt?</p>
-                                                    <button onClick={() => setView('new')} className="ikea-blue text-white px-8 py-3 rounded-xl font-black uppercase tracking-widest text-[10px] btn-animate shadow-md">Send en forespørsel</button>
-                                                </div>
-                                            ) : (
-                                                userRequests.map(req => (
-                                                    <div key={req.id} className="p-8 rounded-3xl card-shadow bg-white flex justify-between items-center border border-gray-50">
-                                                        <div>
-                                                            <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${req.type === 'Feilrapport' ? 'bg-red-50 text-red-500' : 'bg-blue-50 text-blue-500'}`}>{req.type}</span>
-                                                            <h3 className="text-xl font-bold mt-2">{req.title}</h3>
-                                                            <p className="text-gray-400 text-[10px] mt-0.5">Ansvarlig: <span className="text-gray-900 font-bold">{req.assigned_to}</span></p>
-                                                        </div>
-                                                        <div className="text-right">
-                                                            <span className="bg-gray-900 text-white px-5 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest">{req.status}</span>
-                                                        </div>
-                                                    </div>
-                                                ))
-                                            )}
-                                        </div>
-                                    )}
-
-                                    {(view === 'new' || view === 'error') && (
-                                        <form onSubmit={handleSubmit} className="bg-white p-12 rounded-[2.5rem] card-shadow max-w-xl space-y-8">
-                                            <div className="space-y-2">
-                                                <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Tittel</label>
-                                                <input name="title" placeholder={view === 'error' ? "Hvilket system gjelder det?" : "Hva trenger du hjelp med?"} className="w-full p-4 bg-gray-50 rounded-xl outline-none font-bold text-base border-none" required />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <label className="text-[9px] font-black text-gray-400 uppercase tracking-widest ml-1">Beskrivelse</label>
-                                                <textarea name="description" placeholder="Gi oss litt mer detaljer..." className="w-full p-4 bg-gray-50 rounded-xl h-40 outline-none font-medium text-sm border-none" required></textarea>
-                                            </div>
-                                            <button className={`w-full py-4 rounded-xl font-black uppercase tracking-widest text-[10px] btn-animate shadow-xl ${view === 'error' ? 'bg-red-600 text-white' : 'ikea-blue text-white'}`}>
-                                                Send forespørsel ➜
-                                            </button>
-                                        </form>
-                                    )}
-                                </div>
+                                <div className="text-gray-900 font-bold">Velkommen tilbake! Bruk menyen til venstre.</div>
                             )}
                         </div>
                     </main>
