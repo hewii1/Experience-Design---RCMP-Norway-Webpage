@@ -281,29 +281,11 @@
                         </div>
                     </div>
                 ))}
-                {subView === 'Live' && systems.map(s => (
-                    <div key={s.id} className="glass-card p-10 bg-white mb-6 space-y-4 shadow-sm">
-                        <div className="flex gap-4">
-                            <input defaultValue={s.system_name} onBlur={(e) => onUpdate('system_status', s.id, {system_name: e.target.value})} className="input-field font-bold" />
-                            <select value={s.status} onChange={(e) => onUpdate('system_status', s.id, {status: e.target.value})} className="input-field w-40 font-black uppercase text-xs">
-                                <option value="online">Online</option>
-                                <option value="degraded">Degradert</option>
-                            </select>
-                        </div>
-                        <input defaultValue={s.status_message} onBlur={(e) => onUpdate('system_status', s.id, {status_message: e.target.value})} className="input-field italic" placeholder="Statusmelding..." />
-                    </div>
-                ))}
-                {subView === 'Insights' && insights.map(i => (
-                    <div key={i.id} className="glass-card p-10 bg-white mb-6 flex justify-between items-center shadow-sm">
-                        <h5 className="font-black">{i.title}</h5>
-                        <input type="checkbox" checked={i.is_active} onChange={(e) => onUpdate('insights', i.id, {is_active: e.target.checked})} className="w-6 h-6 accent-blue-600" />
-                    </div>
-                ))}
             </div>
         );
 
         const LoginScreen = ({ onLogin }) => {
-            const [mode, setMode] = useState('login'); // login, signup, forgot
+            const [mode, setMode] = useState('login'); 
             const [email, setEmail] = useState('');
             const [pass, setPass] = useState('');
             const [confirmPass, setConfirmPass] = useState('');
@@ -313,7 +295,13 @@
                 e.preventDefault();
                 setMessage('');
 
+                const isAllowedDomain = email.toLowerCase().endsWith('@ingka.ikea.com') || email.toLowerCase().endsWith('@ingka');
+
                 if (mode === 'signup') {
+                    if (!isAllowedDomain) {
+                        setMessage("Kun brukere med @ingka.ikea.com eller @ingka e-post kan opprette konto.");
+                        return;
+                    }
                     if (pass !== confirmPass) {
                         setMessage("Passordene samsvarer ikke.");
                         return;
@@ -353,7 +341,7 @@
                                 <input type="password" value={confirmPass} onChange={e => setConfirmPass(e.target.value)} className="input-field" placeholder="Bekreft passord" required />
                             )}
 
-                            {message && <p className={`text-xs font-bold ${message.includes('sendt') || message.includes('opprettet') ? 'text-emerald-500' : 'text-red-500'}`}>{message}</p>}
+                            {message && <p className={`text-xs font-bold leading-relaxed ${message.includes('sendt') || message.includes('opprettet') ? 'text-emerald-500' : 'text-red-500'}`}>{message}</p>}
 
                             <button className="bg-[#0058AB] text-white p-5 rounded-2xl font-black uppercase tracking-widest btn-clickable w-full shadow-lg mt-4">
                                 {mode === 'login' ? 'Logg inn ➜' : mode === 'signup' ? 'Opprett bruker ➜' : 'Nullstill ➜'}
@@ -363,8 +351,8 @@
                         <div className="mt-8 space-y-2">
                             {mode === 'login' ? (
                                 <>
-                                    <button onClick={() => setMode('signup')} className="text-xs font-bold text-gray-500 hover:text-[#0058AB] block">Har du ikke konto? Lag ny bruker</button>
-                                    <button onClick={() => setMode('forgot')} className="text-xs font-bold text-gray-500 hover:text-[#0058AB] block">Glemt passord?</button>
+                                    <button onClick={() => {setMode('signup'); setMessage('');}} className="text-xs font-bold text-gray-500 hover:text-[#0058AB] block">Har du ikke konto? Lag ny bruker</button>
+                                    <button onClick={() => {setMode('forgot'); setMessage('');}} className="text-xs font-bold text-gray-500 hover:text-[#0058AB] block">Glemt passord?</button>
                                 </>
                             ) : (
                                 <button onClick={() => {setMode('login'); setMessage('');}} className="text-xs font-bold text-gray-500 hover:text-[#0058AB] block">Tilbake til logg inn</button>
