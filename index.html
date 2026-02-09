@@ -65,7 +65,7 @@
             };
 
             const submitRequest = async (type, title, description = "") => {
-                const fullTitle = description ? `${title}: ${description}` : title;
+                const fullTitle = description ? `${title} | Begrunnelse: ${description}` : title;
                 await supabaseClient.from('requests').insert([{ type, title: fullTitle, requested_by: user.email, status: 'Open', assigned_to: 'Ikke tildelt' }]);
                 setView('dashboard');
                 fetchAllData();
@@ -134,21 +134,22 @@
                                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                                     <h2 className="text-4xl font-black italic mb-10">Be om tilgang</h2>
                                     <div className="glass-card p-10 bg-white shadow-xl">
-                                        <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 ml-2">Hva trenger du tilgang til?</p>
+                                        <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 ml-2">Velg app eller rapport</p>
                                         <select id="accessSelect" className="input-field mb-6 text-xl appearance-none">
-                                            <optgroup label="Workspace">
-                                                <option>Workspace: Experience Design</option>
-                                                <option>Workspace: Global Sales</option>
-                                                <option>Workspace: Marketing Hub</option>
+                                            <optgroup label="App: RCMP Performance">
+                                                <option>RCMP Performance: Happy Customer Score</option>
+                                                <option>RCMP Performance: Authorisation Performance Tool</option>
+                                                <option>RCMP Performance: Median Performance Tool</option>
+                                                <option>RCMP Performance: BackOffice FollowUp</option>
                                             </optgroup>
-                                            <optgroup label="Apps">
-                                                <option>App: Insight Engine Pro</option>
-                                                <option>App: Operations Live</option>
-                                                <option>App: Customer Experience Dashboard</option>
+                                            <optgroup label="App: Customer Insight Norway">
+                                                <option>Customer Insight Norway: Compensation</option>
+                                                <option>Customer Insight Norway: SAC</option>
+                                                <option>Customer Insight Norway: After Sales</option>
+                                                <option>Customer Insight Norway: Repeated Calls</option>
                                             </optgroup>
-                                            <optgroup label="Annet">
-                                                <option>AEM Authoring</option>
-                                                <option>PowerBI Admin</option>
+                                            <optgroup label="Enkeltstående rapporter">
+                                                <option>Workspace Planning: Shrinkage Report - RCMP Norway</option>
                                             </optgroup>
                                         </select>
                                         <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 ml-2">Begrunnelse</p>
@@ -203,12 +204,12 @@
                 <h2 className="text-4xl font-black italic">Min side</h2>
                 {requests.filter(r => r.requested_by === user.email).map(req => (
                     <div key={req.id} className="glass-card p-8 flex justify-between items-center bg-white border-l-8 border-l-blue-500 shadow-sm">
-                        <div>
+                        <div className="flex-1 pr-6">
                             <span className={`text-[9px] font-black uppercase px-2 py-1 rounded ${req.status === 'Open' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'}`}>{req.status === 'Open' ? 'Behandles' : 'Fullført'}</span>
                             <h3 className="text-xl font-black mt-2">{req.title}</h3>
                             {req.admin_reason && <p className="text-sm italic text-blue-600 mt-2 font-medium">"{req.admin_reason}"</p>}
                         </div>
-                        <div className="text-right">
+                        <div className="text-right whitespace-nowrap">
                             <p className="text-[10px] font-black text-gray-400 uppercase">Ansvarlig</p>
                             <p className="font-bold">{req.assigned_to}</p>
                         </div>
@@ -261,7 +262,7 @@
                 </div>
                 {subView === 'Tasks' && requests.filter(r => r.status === 'Open' && r.type !== 'ACCESS').map(req => (
                     <div key={req.id} className="glass-card p-8 flex justify-between items-center bg-white border-l-8 border-l-blue-500 mb-4 shadow-sm">
-                        <div><h5 className="font-black text-xl">{req.title}</h5><p className="text-xs font-bold text-gray-400 uppercase">{req.requested_by}</p></div>
+                        <div className="flex-1 pr-4"><h5 className="font-black text-xl line-clamp-2">{req.title}</h5><p className="text-xs font-bold text-gray-400 uppercase">{req.requested_by}</p></div>
                         <div className="flex gap-4">
                             <select value={req.assigned_to} onChange={(e) => onUpdate('requests', req.id, {assigned_to: e.target.value})} className="input-field py-2 text-xs">
                                 {['Ikke tildelt', 'Henrik', 'Marthe', 'Karolina'].map(m => <option key={m}>{m}</option>)}
@@ -273,11 +274,29 @@
                 ))}
                 {subView === 'Access' && requests.filter(r => r.status === 'Open' && r.type === 'ACCESS').map(req => (
                     <div key={req.id} className="glass-card p-8 flex justify-between items-center bg-white border-l-8 border-l-amber-400 mb-4 shadow-sm">
-                        <div className="flex-1 pr-6"><h5 className="font-black text-xl">{req.title}</h5><p className="text-xs font-bold text-gray-400">{req.requested_by}</p></div>
+                        <div className="flex-1 pr-6"><h5 className="font-black text-xl line-clamp-3">{req.title}</h5><p className="text-xs font-bold text-gray-400">{req.requested_by}</p></div>
                         <div className="flex gap-4">
                             <button onClick={() => onDecide(req.id, 'Completed')} className="bg-emerald-500 text-white px-8 py-3 rounded-xl font-black text-[10px]">GODKJENN</button>
                             <button onClick={() => onDecide(req.id, 'Rejected')} className="bg-red-500 text-white px-8 py-3 rounded-xl font-black text-[10px]">AVSLÅ</button>
                         </div>
+                    </div>
+                ))}
+                {subView === 'Live' && systems.map(s => (
+                    <div key={s.id} className="glass-card p-10 bg-white mb-6 space-y-4 shadow-sm">
+                        <div className="flex gap-4">
+                            <input defaultValue={s.system_name} onBlur={(e) => onUpdate('system_status', s.id, {system_name: e.target.value})} className="input-field font-bold" />
+                            <select value={s.status} onChange={(e) => onUpdate('system_status', s.id, {status: e.target.value})} className="input-field w-40 font-black uppercase text-xs">
+                                <option value="online">Online</option>
+                                <option value="degraded">Degradert</option>
+                            </select>
+                        </div>
+                        <input defaultValue={s.status_message} onBlur={(e) => onUpdate('system_status', s.id, {status_message: e.target.value})} className="input-field italic" placeholder="Statusmelding..." />
+                    </div>
+                ))}
+                {subView === 'Insights' && insights.map(i => (
+                    <div key={i.id} className="glass-card p-10 bg-white mb-6 flex justify-between items-center shadow-sm">
+                        <h5 className="font-black">{i.title}</h5>
+                        <input type="checkbox" checked={i.is_active} onChange={(e) => onUpdate('insights', i.id, {is_active: e.target.checked})} className="w-6 h-6 accent-blue-600" />
                     </div>
                 ))}
             </div>
