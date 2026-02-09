@@ -64,8 +64,9 @@
                 setInsights(i.data || []);
             };
 
-            const submitRequest = async (type, title) => {
-                await supabaseClient.from('requests').insert([{ type, title, requested_by: user.email, status: 'Open', assigned_to: 'Ikke tildelt' }]);
+            const submitRequest = async (type, title, description = "") => {
+                const fullTitle = description ? `${title}: ${description}` : title;
+                await supabaseClient.from('requests').insert([{ type, title: fullTitle, requested_by: user.email, status: 'Open', assigned_to: 'Ikke tildelt' }]);
                 setView('dashboard');
                 fetchAllData();
             };
@@ -83,7 +84,6 @@
 
             return (
                 <div className="flex min-h-screen">
-                    {/* Beslutningsmodal */}
                     {activeDecision && (
                         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
                             <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-md shadow-2xl">
@@ -134,21 +134,32 @@
                                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                                     <h2 className="text-4xl font-black italic mb-10">Be om tilgang</h2>
                                     <div className="glass-card p-10 bg-white shadow-xl">
-                                        <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 ml-2">Velg system</p>
+                                        <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 ml-2">Hva trenger du tilgang til?</p>
                                         <select id="accessSelect" className="input-field mb-6 text-xl appearance-none">
-                                            <option>PowerBI - Salgsdata</option>
-                                            <option>Adobe Experience Manager</option>
-                                            <option>Lagerbeholdning Global</option>
-                                            <option>HCS Admin</option>
-                                            <option>Annet</option>
+                                            <optgroup label="Workspace">
+                                                <option>Workspace: Experience Design</option>
+                                                <option>Workspace: Global Sales</option>
+                                                <option>Workspace: Marketing Hub</option>
+                                            </optgroup>
+                                            <optgroup label="Apps">
+                                                <option>App: Insight Engine Pro</option>
+                                                <option>App: Operations Live</option>
+                                                <option>App: Customer Experience Dashboard</option>
+                                            </optgroup>
+                                            <optgroup label="Annet">
+                                                <option>AEM Authoring</option>
+                                                <option>PowerBI Admin</option>
+                                            </optgroup>
                                         </select>
-                                        <button onClick={() => submitRequest('ACCESS', document.getElementById('accessSelect').value)} className="bg-[#0058AB] text-white px-10 py-5 rounded-2xl font-black uppercase tracking-widest btn-clickable">Send forespørsel ➜</button>
+                                        <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 ml-2">Begrunnelse</p>
+                                        <textarea id="accessReason" className="input-field h-32 mb-6" placeholder="Hvorfor trenger du denne tilgangen?"></textarea>
+                                        <button onClick={() => submitRequest('ACCESS', document.getElementById('accessSelect').value, document.getElementById('accessReason').value)} className="bg-[#0058AB] text-white px-10 py-5 rounded-2xl font-black uppercase tracking-widest btn-clickable">Send forespørsel ➜</button>
                                     </div>
                                 </div>
                             )}
 
-                            {view === 'new' && <FormView title="Ny forespørsel" placeholder="Beskriv hva du trenger hjelp til..." onSubmit={(v) => submitRequest('TASK', v)} />}
-                            {view === 'error' && <FormView title="Rapporter feil" placeholder="Hva fungerer ikke som det skal?" onSubmit={(v) => submitRequest('ERROR', v)} />}
+                            {view === 'new' && <FormWithTitleView title="Ny forespørsel" onSubmit={(t, d) => submitRequest('TASK', t, d)} />}
+                            {view === 'error' && <FormWithTitleView title="Rapporter feil" onSubmit={(t, d) => submitRequest('ERROR', t, d)} />}
 
                             {view === 'admin' && (
                                 <AdminPanel 
@@ -170,10 +181,26 @@
             </button>
         );
 
+        const FormWithTitleView = ({ title, onSubmit }) => {
+            const [t, setT] = useState('');
+            const [d, setD] = useState('');
+            return (
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    <h2 className="text-4xl font-black italic mb-10">{title}</h2>
+                    <div className="glass-card p-10 bg-white shadow-xl">
+                        <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 ml-2">Tittel</p>
+                        <input value={t} onChange={e => setT(e.target.value)} className="input-field mb-6 text-xl" placeholder="Kort overskrift..." />
+                        <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 ml-2">Beskrivelse</p>
+                        <textarea value={d} onChange={e => setD(e.target.value)} className="w-full h-40 bg-gray-50 rounded-3xl p-8 outline-none text-xl font-medium mb-6" placeholder="Beskriv saken nærmere..."></textarea>
+                        <button onClick={() => { if(t){ onSubmit(t, d); setT(''); setD(''); } }} className="bg-[#0058AB] text-white px-10 py-5 rounded-2xl font-black uppercase tracking-widest btn-clickable">Send inn ➜</button>
+                    </div>
+                </div>
+            );
+        };
+
         const DashboardView = ({ requests, user }) => (
             <div className="space-y-8 animate-in fade-in duration-500">
                 <h2 className="text-4xl font-black italic">Min side</h2>
-                {requests.filter(r => r.requested_by === user.email).length === 0 && <p className="text-gray-400 italic">Ingen aktive saker.</p>}
                 {requests.filter(r => r.requested_by === user.email).map(req => (
                     <div key={req.id} className="glass-card p-8 flex justify-between items-center bg-white border-l-8 border-l-blue-500 shadow-sm">
                         <div>
@@ -198,10 +225,7 @@
                         <div key={s.id} className="glass-card p-8 bg-white flex items-center justify-between shadow-sm">
                             <div className="flex items-center gap-6">
                                 <div className={`status-dot ${s.status === 'online' ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]' : 'bg-amber-500 animate-pulse'}`}></div>
-                                <div>
-                                    <h3 className="text-2xl font-black">{s.system_name}</h3>
-                                    <p className="text-gray-400 font-medium">{s.status_message || 'Opererer normalt'}</p>
-                                </div>
+                                <div><h3 className="text-2xl font-black">{s.system_name}</h3><p className="text-gray-400 font-medium">{s.status_message || 'Opererer normalt'}</p></div>
                             </div>
                         </div>
                     ))}
@@ -227,20 +251,6 @@
             </div>
         );
 
-        const FormView = ({ title, placeholder, onSubmit }) => {
-            const [val, setVal] = useState('');
-            return (
-                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                    <h2 className="text-4xl font-black italic mb-10">{title}</h2>
-                    <div className="glass-card p-10 bg-white shadow-xl">
-                        <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 ml-2">Beskrivelse</p>
-                        <textarea value={val} onChange={(e) => setVal(e.target.value)} className="w-full h-40 bg-gray-50 rounded-3xl p-8 outline-none text-xl font-medium mb-6" placeholder={placeholder}></textarea>
-                        <button onClick={() => { if(val.trim()){ onSubmit(val); setVal(''); } }} className="bg-[#0058AB] text-white px-10 py-5 rounded-2xl font-black uppercase tracking-widest btn-clickable">Send inn ➜</button>
-                    </div>
-                </div>
-            );
-        };
-
         const AdminPanel = ({ requests, systems, insights, subView, setSubView, onUpdate, onDecide, counts }) => (
             <div className="space-y-10 animate-in fade-in duration-500">
                 <div className="admin-tab-bar">
@@ -248,11 +258,9 @@
                     <button onClick={() => setSubView('Access')} className={`admin-tab ${subView === 'Access' ? 'admin-tab-active' : 'text-gray-400'}`}>Access {counts.access > 0 && <span className="red-dot"></span>}</button>
                     <button onClick={() => setSubView('Live')} className={`admin-tab ${subView === 'Live' ? 'admin-tab-active' : 'text-gray-400'}`}>Live</button>
                     <button onClick={() => setSubView('Insights')} className={`admin-tab ${subView === 'Insights' ? 'admin-tab-active' : 'text-gray-400'}`}>Insights</button>
-                    <button className="admin-tab text-gray-300">Log</button>
                 </div>
-
                 {subView === 'Tasks' && requests.filter(r => r.status === 'Open' && r.type !== 'ACCESS').map(req => (
-                    <div key={req.id} className="glass-card p-8 flex justify-between items-center bg-white shadow-sm border-l-8 border-l-blue-500 mb-4">
+                    <div key={req.id} className="glass-card p-8 flex justify-between items-center bg-white border-l-8 border-l-blue-500 mb-4 shadow-sm">
                         <div><h5 className="font-black text-xl">{req.title}</h5><p className="text-xs font-bold text-gray-400 uppercase">{req.requested_by}</p></div>
                         <div className="flex gap-4">
                             <select value={req.assigned_to} onChange={(e) => onUpdate('requests', req.id, {assigned_to: e.target.value})} className="input-field py-2 text-xs">
@@ -263,34 +271,13 @@
                         </div>
                     </div>
                 ))}
-
                 {subView === 'Access' && requests.filter(r => r.status === 'Open' && r.type === 'ACCESS').map(req => (
-                    <div key={req.id} className="glass-card p-8 flex justify-between items-center bg-white shadow-sm border-l-8 border-l-amber-400 mb-4">
-                        <div><h5 className="font-black text-xl">{req.title}</h5><p className="text-xs font-bold text-gray-400">{req.requested_by}</p></div>
+                    <div key={req.id} className="glass-card p-8 flex justify-between items-center bg-white border-l-8 border-l-amber-400 mb-4 shadow-sm">
+                        <div className="flex-1 pr-6"><h5 className="font-black text-xl">{req.title}</h5><p className="text-xs font-bold text-gray-400">{req.requested_by}</p></div>
                         <div className="flex gap-4">
                             <button onClick={() => onDecide(req.id, 'Completed')} className="bg-emerald-500 text-white px-8 py-3 rounded-xl font-black text-[10px]">GODKJENN</button>
                             <button onClick={() => onDecide(req.id, 'Rejected')} className="bg-red-500 text-white px-8 py-3 rounded-xl font-black text-[10px]">AVSLÅ</button>
                         </div>
-                    </div>
-                ))}
-
-                {subView === 'Live' && systems.map(s => (
-                    <div key={s.id} className="glass-card p-10 bg-white mb-6 space-y-4">
-                        <div className="flex gap-4">
-                            <input defaultValue={s.system_name} onBlur={(e) => onUpdate('system_status', s.id, {system_name: e.target.value})} className="input-field font-bold" />
-                            <select value={s.status} onChange={(e) => onUpdate('system_status', s.id, {status: e.target.value})} className="input-field w-40 font-black uppercase text-xs">
-                                <option value="online">Online</option>
-                                <option value="degraded">Degradert</option>
-                            </select>
-                        </div>
-                        <input defaultValue={s.status_message} onBlur={(e) => onUpdate('system_status', s.id, {status_message: e.target.value})} className="input-field italic" placeholder="Statusmelding..." />
-                    </div>
-                ))}
-
-                {subView === 'Insights' && insights.map(i => (
-                    <div key={i.id} className="glass-card p-10 bg-white mb-6 flex justify-between items-center">
-                        <h5 className="font-black">{i.title}</h5>
-                        <input type="checkbox" checked={i.is_active} onChange={(e) => onUpdate('insights', i.id, {is_active: e.target.checked})} className="w-6 h-6" />
                     </div>
                 ))}
             </div>
@@ -316,10 +303,7 @@
                         </form>
                     </div>
                     <div className="flex-1 hero-gradient flex items-center justify-center">
-                        <div className="text-center">
-                            <h2 className="text-amber-400 text-7xl font-black italic italic leading-none drop-shadow-2xl">Experience Design</h2>
-                            <p className="text-white font-bold tracking-[0.5em] uppercase mt-4 opacity-60">Norway Hub</p>
-                        </div>
+                        <div className="text-center"><h2 className="text-amber-400 text-7xl font-black italic leading-none drop-shadow-2xl">Experience Design</h2><p className="text-white font-bold tracking-[0.5em] uppercase mt-4 opacity-60">Norway Hub</p></div>
                     </div>
                 </div>
             );
