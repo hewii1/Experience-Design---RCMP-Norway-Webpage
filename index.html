@@ -46,6 +46,7 @@
             const [authMode, setAuthMode] = useState('login');
             const [adminSubView, setAdminSubView] = useState('Tasks');
             const [mySideFilter, setMySideFilter] = useState('active');
+            const [logDateFilter, setLogDateFilter] = useState('');
             
             const [requests, setRequests] = useState([]);
             const [insights, setInsights] = useState([]);
@@ -116,10 +117,12 @@
 
             const finalizeDecision = async (reason) => {
                 const completedAt = new Date().toLocaleString('no-NO', { timeZone: 'Europe/Oslo' });
+                const isoDate = new Date().toISOString(); 
                 await supabaseClient.from('requests').update({ 
                     status: activeDecision.status, 
                     admin_reason: reason,
-                    completed_at: completedAt
+                    completed_at: completedAt,
+                    completed_at_iso: isoDate
                 }).eq('id', activeDecision.id);
                 setActiveDecision(null);
                 fetchData();
@@ -129,13 +132,14 @@
             const unassignedTaskCount = useMemo(() => requests.filter(r => r.type !== 'ACCESS' && r.status === 'Open' && r.assigned_to === 'Ikke tildelt').length, [requests]);
             const totalAdminAlerts = openAccessCount + unassignedTaskCount;
 
-            const sortedTasks = useMemo(() => {
-                return [...requests].filter(r => r.type !== 'ACCESS' && r.status === 'Open').sort((a, b) => {
-                    if (a.assigned_to === 'Ikke tildelt' && b.assigned_to !== 'Ikke tildelt') return -1;
-                    if (a.assigned_to !== 'Ikke tildelt' && b.assigned_to === 'Ikke tildelt') return 1;
-                    return 0;
+            const filteredLog = useMemo(() => {
+                return requests.filter(r => {
+                    if (r.status === 'Open') return false;
+                    if (!logDateFilter) return true;
+                    const dateToCheck = r.completed_at_iso || r.created_at;
+                    return dateToCheck.startsWith(logDateFilter);
                 });
-            }, [requests]);
+            }, [requests, logDateFilter]);
 
             const isAdmin = user && ['henrik.h.wiik@gmail.com', 'marthe.epost@ingka.ikea.com', 'karolina.epost@ingka.ikea.com'].includes(user.email);
 
@@ -191,80 +195,76 @@
 
                     <aside className="w-72 bg-white border-r border-gray-100 flex flex-col fixed h-full z-20 pt-12">
                         <div className="px-10 mb-8"><h1 className="text-4xl font-black italic text-gray-900 leading-none">RCMP</h1><p className="text-[9px] font-black uppercase tracking-[0.3em] text-gray-400 mt-1.5">Experience Design Portal</p></div>
-                        
                         <div className="mb-6"><button onClick={() => setView('dashboard')} className={`sidebar-item px-6 py-4 text-sm font-bold ${view === 'dashboard' ? 'sidebar-active' : 'text-gray-900'}`}>👤 Min side</button><div className="mx-8 border-t border-gray-100 mt-4"></div></div>
-                        
                         <div className="mb-6 space-y-1">
                             <button onClick={() => setView('systems')} className={`sidebar-item px-6 py-3.5 text-sm font-semibold ${view === 'systems' ? 'sidebar-active' : 'text-gray-500'}`}>🛰️ Live Ops</button>
                             <button onClick={() => setView('insights')} className={`sidebar-item px-6 py-3.5 text-sm font-semibold ${view === 'insights' ? 'sidebar-active' : 'text-gray-500'}`}>💡 Insight Engine</button>
                             <div className="mx-8 border-t border-gray-100 mt-4"></div>
                         </div>
-
                         <nav className="flex-1 space-y-1">
                             <button onClick={() => setView('access')} className={`sidebar-item px-6 py-3.5 text-sm font-semibold ${view === 'access' ? 'sidebar-active' : 'text-gray-500'}`}>🔑 Be om tilgang</button>
                             <button onClick={() => setView('new')} className={`sidebar-item px-6 py-3.5 text-sm font-semibold ${view === 'new' ? 'sidebar-active' : 'text-gray-500'}`}>✨ Ny forespørsel</button>
                             <button onClick={() => setView('error')} className={`sidebar-item px-6 py-3.5 text-sm font-semibold ${view === 'error' ? 'sidebar-active' : 'text-gray-500'}`}>⚠️ Rapporter feil</button>
                             {isAdmin && <><div className="mx-8 border-t border-gray-100 my-4"></div><button onClick={() => setView('admin')} className={`sidebar-item px-6 py-3.5 text-sm font-bold ${view === 'admin' ? 'sidebar-active' : 'text-red-400'}`}>🛡️ Control Center {totalAdminAlerts > 0 && <span className="badge-red">{totalAdminAlerts}</span>}</button></>}
                         </nav>
-
                         <div className="p-8 border-t border-gray-50"><button onClick={handleLogout} className="text-[10px] font-black text-gray-400 uppercase tracking-widest btn-clickable">Logg ut ➜</button></div>
                     </aside>
 
                     <main className="flex-1 ml-72 p-16">
                         <div className="max-w-5xl mx-auto">
-                            {view === 'dashboard' && (
-                                <div className="space-y-8 animate-in fade-in">
-                                    <div className="flex justify-between items-end">
-                                        <h2 className="text-4xl font-extrabold italic">Min side</h2>
-                                        <div className="admin-tab-bar">
-                                            {['active', 'closed', 'all'].map(f => (
-                                                <button key={f} onClick={() => setMySideFilter(f)} className={`admin-tab ${mySideFilter === f ? 'admin-tab-active' : 'text-gray-400'}`}>{f === 'active' ? 'Aktive' : f === 'closed' ? 'Avsluttede' : 'Alle'}</button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                    <div className="grid gap-4">
-                                        {requests.filter(r => {
-                                            if (r.requested_by !== user.email) return false;
-                                            if (mySideFilter === 'active') return r.status === 'Open';
-                                            if (mySideFilter === 'closed') return r.status !== 'Open';
-                                            return true;
-                                        }).map(req => (
-                                            <div key={req.id} className="glass-card p-8 rounded-[2.5rem] flex justify-between items-center">
-                                                <div><span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest mb-2 inline-block ${req.status === 'Approved' || req.status === 'Completed' ? 'bg-green-50 text-green-600' : req.status === 'Rejected' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>{req.status}</span><h3 className="text-xl font-black">{req.title}</h3>{req.admin_reason && <p className="text-sm text-blue-600 font-bold mt-2 italic">"{req.admin_reason}"</p>}</div>
-                                                <div className="text-xs font-bold text-gray-300">#{req.id}</div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
                             {view === 'admin' && (
                                 <div className="space-y-10 animate-in fade-in">
                                     <div className="admin-tab-bar">
                                         {['Tasks', 'Access', 'Live', 'Insights', 'Log'].map(sub => (
                                             <button key={sub} onClick={() => setAdminSubView(sub)} className={`admin-tab ${adminSubView === sub ? 'admin-tab-active' : 'text-gray-500'}`}>
-                                                {sub} {((sub==='Tasks' && unassignedTaskCount > 0) || (sub==='Access' && openAccessCount > 0)) && <span className="text-red-500 font-black">•</span>}
+                                                {sub} {((sub==='Tasks' && unassignedTaskCount > 0) || (sub==='Access' && openAccessCount > 0)) && <span className="text-red-500 font-black ml-1">•</span>}
                                             </button>
                                         ))}
                                     </div>
 
-                                    {adminSubView === 'Tasks' && <div className="space-y-4">{sortedTasks.map(req => (
-                                        <div key={req.id} className={`glass-card p-6 rounded-[2rem] flex justify-between items-center border-l-4 ${req.assigned_to === 'Ikke tildelt' ? 'border-l-red-500 bg-red-50/30' : 'border-l-blue-400'}`}>
-                                            <div>
-                                                <h5 className="font-black text-lg">{req.title}</h5>
-                                                <p className="text-xs text-gray-400 font-bold">{req.requested_by} • <span className="text-blue-500 uppercase">{req.type}</span></p>
-                                            </div>
-                                            <div className="flex gap-4 items-center">
-                                                <select value={req.assigned_to} onChange={(e) => updateDb('requests', req.id, {assigned_to: e.target.value})} className="bg-white border-2 border-gray-100 p-2.5 rounded-xl text-[10px] font-black uppercase outline-none focus:border-blue-200">
-                                                    {TEAM.map(t => <option key={t} value={t}>{t}</option>)}
-                                                </select>
-                                                <div className="flex gap-2">
-                                                    <button onClick={() => setActiveDecision({id: req.id, status: 'Completed'})} className="bg-green-500 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase btn-clickable w-auto shadow-sm">Avslutt henvendelse</button>
-                                                    <button onClick={() => setActiveDecision({id: req.id, status: 'Rejected'})} className="bg-red-500 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase btn-clickable w-auto shadow-sm">Avslå</button>
-                                                </div>
-                                            </div>
+                                    {adminSubView === 'Tasks' && (
+                                        <div className="space-y-12">
+                                            {TEAM.map(member => {
+                                                const memberTasks = requests.filter(r => r.type !== 'ACCESS' && r.status === 'Open' && r.assigned_to === member);
+                                                if (memberTasks.length === 0 && member !== 'Ikke tildelt') return null;
+
+                                                return (
+                                                    <div key={member} className="space-y-5">
+                                                        <div className="flex items-center gap-3 px-2">
+                                                            <div className={`w-2 h-2 rounded-full ${member === 'Ikke tildelt' ? 'bg-red-500' : 'bg-blue-400'}`}></div>
+                                                            <h4 className="text-[11px] font-black uppercase tracking-[0.2em] text-gray-400">
+                                                                {member === 'Ikke tildelt' ? 'Ufordelte oppgaver' : `Oppgaver til ${member}`}
+                                                                <span className="ml-2 text-gray-300">({memberTasks.length})</span>
+                                                            </h4>
+                                                        </div>
+                                                        <div className="space-y-3">
+                                                            {memberTasks.length > 0 ? memberTasks.map(req => (
+                                                                <div key={req.id} className={`glass-card p-6 rounded-[2.2rem] flex justify-between items-center border-l-4 ${member === 'Ikke tildelt' ? 'border-l-red-500 bg-red-50/20' : 'border-l-blue-400'}`}>
+                                                                    <div>
+                                                                        <h5 className="font-black text-lg text-gray-800">{req.title}</h5>
+                                                                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{req.requested_by} • <span className="text-blue-500">{req.type}</span></p>
+                                                                    </div>
+                                                                    <div className="flex gap-4 items-center">
+                                                                        <select value={req.assigned_to} onChange={(e) => updateDb('requests', req.id, {assigned_to: e.target.value})} className="bg-white border-2 border-gray-100 p-2.5 rounded-xl text-[10px] font-black uppercase outline-none focus:border-blue-200 cursor-pointer">
+                                                                            {TEAM.map(t => <option key={t} value={t}>{t}</option>)}
+                                                                        </select>
+                                                                        <div className="flex gap-2">
+                                                                            <button onClick={() => setActiveDecision({id: req.id, status: 'Completed'})} className="bg-[#0058AB] text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase btn-clickable w-auto shadow-sm">Løs</button>
+                                                                            <button onClick={() => setActiveDecision({id: req.id, status: 'Rejected'})} className="bg-red-500 text-white px-5 py-2.5 rounded-xl text-[10px] font-black uppercase btn-clickable w-auto shadow-sm">Avslå</button>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            )) : (
+                                                                <div className="py-8 px-10 border-2 border-dashed border-gray-100 rounded-[2.5rem] text-center">
+                                                                    <p className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Ingen ufordelte oppgaver 🎉</p>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
-                                    ))}</div>}
+                                    )}
 
                                     {adminSubView === 'Access' && <div className="grid gap-6">{requests.filter(r => r.type === 'ACCESS' && r.status === 'Open').map(req => (
                                         <div key={req.id} className="glass-card p-8 rounded-[2.5rem] flex flex-col gap-6">
@@ -278,33 +278,33 @@
                                         </div>
                                     ))}</div>}
 
-                                    {adminSubView === 'Log' && <div className="glass-card rounded-[2.5rem] overflow-hidden">
-                                        <table className="w-full text-left">
-                                            <thead className="bg-gray-50 font-black text-[10px] uppercase text-gray-400">
-                                                <tr>
-                                                    <th className="p-6">Meldt inn</th>
-                                                    <th className="p-6">Ferdigstilt</th>
-                                                    <th className="p-6">Søker</th>
-                                                    <th className="p-6">Sak</th>
-                                                    <th className="p-6">Status</th>
-                                                    <th className="p-6">Begrunnelse</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-gray-50">
-                                                {requests.filter(r => r.status !== 'Open').map(req => (
-                                                    <tr key={req.id} className="hover:bg-gray-50/50">
-                                                        <td className="p-6 text-[11px] font-medium text-gray-400">{req.created_at ? new Date(req.created_at).toLocaleString('no-NO') : '-'}</td>
-                                                        <td className="p-6 text-[11px] font-black text-blue-600">{req.completed_at || '-'}</td>
-                                                        <td className="p-6 text-sm font-bold">{req.requested_by}</td>
-                                                        <td className="p-6 text-sm font-medium">{req.title} <span className="text-[10px] opacity-40">#{req.id}</span></td>
-                                                        <td className={`p-6 uppercase text-[9px] font-black tracking-widest ${req.status === 'Approved' || req.status === 'Completed' ? 'text-green-600' : 'text-red-600'}`}>{req.status}</td>
-                                                        <td className="p-6 italic text-gray-500 text-xs max-w-xs truncate">"{req.admin_reason || '-'}"</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
+                                    {adminSubView === 'Log' && <div className="space-y-4">
+                                        <div className="flex items-center gap-4 bg-gray-100 p-4 rounded-2xl w-fit">
+                                            <label className="text-[10px] font-black uppercase text-gray-500">Filtrer på dato:</label>
+                                            <input type="date" value={logDateFilter} onChange={(e) => setLogDateFilter(e.target.value)} className="bg-white border-none rounded-lg px-3 py-1 text-sm font-bold outline-none" />
+                                            {logDateFilter && <button onClick={() => setLogDateFilter('')} className="text-[10px] font-black uppercase text-red-500 hover:text-red-700">Nullstill</button>}
+                                        </div>
+                                        <div className="glass-card rounded-[2.5rem] overflow-hidden">
+                                            <table className="w-full text-left">
+                                                <thead className="bg-gray-50 font-black text-[10px] uppercase text-gray-400">
+                                                    <tr><th className="p-6">Meldt inn</th><th className="p-6">Ferdigstilt</th><th className="p-6">Søker</th><th className="p-6">Sak</th><th className="p-6">Status</th><th className="p-6">Begrunnelse</th></tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-gray-50">
+                                                    {filteredLog.length > 0 ? filteredLog.map(req => (
+                                                        <tr key={req.id} className="hover:bg-gray-50/50">
+                                                            <td className="p-6 text-[11px] font-medium text-gray-400">{req.created_at ? new Date(req.created_at).toLocaleString('no-NO') : '-'}</td>
+                                                            <td className="p-6 text-[11px] font-black text-blue-600">{req.completed_at || '-'}</td>
+                                                            <td className="p-6 text-sm font-bold">{req.requested_by}</td>
+                                                            <td className="p-6 text-sm font-medium">{req.title} <span className="text-[10px] opacity-40">#{req.id}</span></td>
+                                                            <td className={`p-6 uppercase text-[9px] font-black tracking-widest ${req.status === 'Approved' || req.status === 'Completed' ? 'text-green-600' : 'text-red-600'}`}>{req.status}</td>
+                                                            <td className="p-6 italic text-gray-500 text-xs max-w-xs truncate">"{req.admin_reason || '-'}"</td>
+                                                        </tr>
+                                                    )) : <tr><td colSpan="6" className="p-10 text-center font-bold text-gray-300 uppercase tracking-widest">Ingen saker funnet</td></tr>}
+                                                </tbody>
+                                            </table>
+                                        </div>
                                     </div>}
-                                    
+
                                     {adminSubView === 'Live' && <div className="grid gap-6">{systems.map(s => (
                                         <div key={s.id} className="glass-card p-10 rounded-[3rem] space-y-6"><div className="grid grid-cols-2 gap-6"><div className="space-y-2"><label className="text-[10px] font-black uppercase text-gray-400">Systemnavn</label><input defaultValue={s.system_name} onBlur={(e) => updateDb('system_status', s.id, {system_name: e.target.value})} className="input-field font-bold" /></div><div className="space-y-2"><label className="text-[10px] font-black uppercase text-gray-400">Status</label><select value={s.status} onChange={(e) => updateDb('system_status', s.id, {status: e.target.value})} className="input-field font-bold"><option value="online">Online</option><option value="degraded">Degradert</option><option value="offline">Offline</option></select></div><div className="col-span-2 space-y-2"><label className="text-[10px] font-black uppercase text-gray-400">Melding</label><input defaultValue={s.status_message} onBlur={(e) => updateDb('system_status', s.id, {status_message: e.target.value})} className="input-field italic" placeholder="Statusmelding..." /></div></div></div>
                                     ))}</div>}
@@ -315,14 +315,9 @@
                                 </div>
                             )}
 
-                            {view === 'systems' && <div className="space-y-8 animate-in fade-in"><h2 className="text-4xl font-extrabold italic">Live Operations</h2><div className="grid gap-6">{systems.map(s => (
-                                <div key={s.id} className="glass-card p-8 rounded-[2.5rem] flex flex-col gap-4"><div className="flex items-center gap-4"><div className={`w-3.5 h-3.5 rounded-full ${s.status === 'online' ? 'bg-green-500' : 'bg-amber-500 animate-pulse'}`}></div><h4 className="font-black text-2xl">{s.system_name}</h4></div>{s.status_message && <p className="text-sm font-medium text-gray-600 bg-gray-50 p-4 rounded-2xl italic">"{s.status_message}"</p>}</div>
-                            ))}</div></div>}
-
-                            {view === 'insights' && <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 animate-in fade-in">{insights.filter(i => i.is_active).map(item => (
-                                <div key={item.id} className="glass-card rounded-[3.5rem] flex flex-col justify-between min-h-[480px] group overflow-hidden"><div className="h-[220px] overflow-hidden"><img src={item.image_url || 'https://images.unsplash.com/photo-1551288049-bbbda546697a'} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" /></div><div className="p-10 relative z-10 -mt-10 bg-white rounded-t-[3rem] flex-1"><span className="text-[10px] font-black uppercase text-blue-600/60 tracking-widest">{item.tag}</span><h3 className="text-2xl font-black mt-4 leading-tight">{item.title}</h3><p className="text-gray-500 text-sm mt-3 line-clamp-3">{item.description}</p></div><div className="p-10 pt-0"><a href={item.link_url} target="_blank" className="block"><button style={{backgroundColor: item.color_hex}} className="w-full text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg btn-clickable">Se mer ➜</button></a></div></div>
-                            ))}</div>}
-
+                            {view === 'dashboard' && <div className="space-y-8 animate-in fade-in"><div className="flex justify-between items-end"><h2 className="text-4xl font-extrabold italic">Min side</h2><div className="admin-tab-bar">{['active', 'closed', 'all'].map(f => (<button key={f} onClick={() => setMySideFilter(f)} className={`admin-tab ${mySideFilter === f ? 'admin-tab-active' : 'text-gray-400'}`}>{f === 'active' ? 'Aktive' : f === 'closed' ? 'Avsluttede' : 'Alle'}</button>))}</div></div><div className="grid gap-4">{requests.filter(r => { if (r.requested_by !== user.email) return false; if (mySideFilter === 'active') return r.status === 'Open'; if (mySideFilter === 'closed') return r.status !== 'Open'; return true; }).map(req => (<div key={req.id} className="glass-card p-8 rounded-[2.5rem] flex justify-between items-center"><div><span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest mb-2 inline-block ${req.status === 'Approved' || req.status === 'Completed' ? 'bg-green-50 text-green-600' : req.status === 'Rejected' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>{req.status}</span><h3 className="text-xl font-black">{req.title}</h3>{req.admin_reason && <p className="text-sm text-blue-600 font-bold mt-2 italic">"{req.admin_reason}"</p>}</div><div className="text-xs font-bold text-gray-300">#{req.id}</div></div>))}</div></div>}
+                            {view === 'systems' && <div className="space-y-8 animate-in fade-in"><h2 className="text-4xl font-extrabold italic">Live Operations</h2><div className="grid gap-6">{systems.map(s => (<div key={s.id} className="glass-card p-8 rounded-[2.5rem] flex flex-col gap-4"><div className="flex items-center gap-4"><div className={`w-3.5 h-3.5 rounded-full ${s.status === 'online' ? 'bg-green-500' : 'bg-amber-500 animate-pulse'}`}></div><h4 className="font-black text-2xl">{s.system_name}</h4></div>{s.status_message && <p className="text-sm font-medium text-gray-600 bg-gray-50 p-4 rounded-2xl italic">"{s.status_message}"</p>}</div>))}</div></div>}
+                            {view === 'insights' && <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 animate-in fade-in">{insights.filter(i => i.is_active).map(item => (<div key={item.id} className="glass-card rounded-[3.5rem] flex flex-col justify-between min-h-[480px] group overflow-hidden"><div className="h-[220px] overflow-hidden"><img src={item.image_url || 'https://images.unsplash.com/photo-1551288049-bbbda546697a'} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" /></div><div className="p-10 relative z-10 -mt-10 bg-white rounded-t-[3rem] flex-1"><span className="text-[10px] font-black uppercase text-blue-600/60 tracking-widest">{item.tag}</span><h3 className="text-2xl font-black mt-4 leading-tight">{item.title}</h3><p className="text-gray-500 text-sm mt-3 line-clamp-3">{item.description}</p></div><div className="p-10 pt-0"><a href={item.link_url} target="_blank" className="block"><button style={{backgroundColor: item.color_hex}} className="w-full text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg btn-clickable">Se mer ➜</button></a></div></div>))}</div>}
                             {(view === 'new' || view === 'error' || view === 'access') && <div className="max-w-xl animate-in fade-in"><h2 className="text-4xl font-extrabold italic mb-8 uppercase">{view === 'access' ? 'Be om tilgang' : view === 'error' ? 'Rapporter feil' : 'Ny forespørsel'}</h2><form onSubmit={(e) => handleSubmitForm(e, view.toUpperCase())} className="glass-card p-10 rounded-[3rem] space-y-6">{view === 'access' ? <select name="title" className="input-field font-bold">{REPORTS.map(r => <option key={r} value={r}>{r}</option>)}</select> : <input name="title" required placeholder="Tittel" className="input-field font-bold" />}<textarea name="description" required className="input-field h-40" placeholder="Beskriv behovet..."></textarea><button className="bg-[#0058AB] text-white p-5 rounded-2xl font-black uppercase tracking-widest btn-clickable shadow-xl hover:bg-[#004a8f]">Send inn ➜</button></form></div>}
                         </div>
                     </main>
