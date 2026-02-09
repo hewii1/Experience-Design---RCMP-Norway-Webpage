@@ -14,17 +14,18 @@
         body { font-family: 'Plus Jakarta Sans', sans-serif; letter-spacing: -0.025em; background-color: #fcfcfd; color: #101828; margin: 0; }
         .sidebar-item { transition: all 0.2s ease; border-radius: 12px; margin: 2px 12px; display: flex; align-items: center; width: calc(100% - 24px); position: relative; cursor: pointer; border: none; background: transparent; text-align: left; }
         .sidebar-active { background-color: #f5f8ff; color: #0058AB !important; font-weight: 700; box-shadow: inset 4px 0 0 -1px #0058AB; }
-        .glass-card { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid #f0f2f5; transition: transform 0.2s ease; }
+        .glass-card { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid #f0f2f5; }
         .login-gradient { background: #0058AB; }
         .input-field { background-color: #f0f4f9; border: none; border-radius: 12px; padding: 16px; width: 100%; outline: none; font-weight: 500; }
-        .btn-clickable { cursor: pointer; width: 100%; display: block; text-align: center; transition: all 0.2s; border: none; }
+        .btn-clickable { cursor: pointer; transition: all 0.2s; border: none; }
         .btn-clickable:active { transform: scale(0.98); }
         .badge-red { background-color: #ef4444; color: white; font-size: 10px; font-weight: 900; padding: 2px 6px; border-radius: 10px; position: absolute; right: 12px; }
         .admin-tab-bar { background-color: #f3f4f6; padding: 6px; border-radius: 18px; display: inline-flex; gap: 4px; }
         .admin-tab { padding: 8px 20px; border-radius: 12px; font-size: 12px; font-weight: 700; transition: all 0.2s; cursor: pointer; border: none; }
         .admin-tab-active { background-color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.05); color: #101828; }
-        .modal-overlay { background: rgba(16, 24, 40, 0.4); backdrop-filter: blur(4px); position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 24px; }
-        .image-preview-circle { width: 40px; height: 40px; border-radius: 10px; object-fit: cover; cursor: zoom-in; border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .modal-overlay { background: rgba(16, 24, 40, 0.6); backdrop-filter: blur(8px); position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 40px; }
+        .image-preview-circle { width: 44px; height: 44px; border-radius: 12px; object-fit: cover; cursor: pointer; border: 2px solid white; box-shadow: 0 4px 12px rgba(0,0,0,0.1); transition: transform 0.2s; }
+        .image-preview-circle:hover { transform: scale(1.1); }
     </style>
 </head>
 <body>
@@ -55,16 +56,14 @@
             const [user, setUser] = useState(null);
             const [loading, setLoading] = useState(true);
             const [view, setView] = useState('dashboard');
-            const [authMode, setAuthMode] = useState('login');
             const [adminSubView, setAdminSubView] = useState('Tasks');
-            const [mySideFilter, setMySideFilter] = useState('active');
             const [requests, setRequests] = useState([]);
             const [insights, setInsights] = useState([]);
             const [systems, setSystems] = useState([]);
             const [email, setEmail] = useState('');
             const [password, setPassword] = useState('');
-            const [confirmPassword, setConfirmPassword] = useState('');
             const [activeDecision, setActiveDecision] = useState(null);
+            const [zoomedImage, setZoomedImage] = useState(null);
             const [uploading, setUploading] = useState(false);
 
             useEffect(() => {
@@ -91,13 +90,13 @@
                 if (!file || file.size === 0) return null;
                 const fileExt = file.name.split('.').pop();
                 const fileName = `${Math.random()}-${Date.now()}.${fileExt}`;
-                const filePath = `user-uploads/${fileName}`;
+                const filePath = `portal-uploads/${fileName}`;
 
                 const { error } = await supabaseClient.storage
                     .from('attachments')
                     .upload(filePath, file);
 
-                if (error) { alert("Opplasting av bilde feilet!"); return null; }
+                if (error) { console.error(error); return null; }
 
                 const { data: { publicUrl } } = supabaseClient.storage
                     .from('attachments')
@@ -132,13 +131,8 @@
 
             const handleAuth = async (e) => {
                 e.preventDefault();
-                if (authMode === 'signup') {
-                    const { error } = await supabaseClient.auth.signUp({ email, password });
-                    if (error) alert(error.message); else alert("Bruker opprettet!");
-                } else {
-                    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-                    if (error) alert("Feil pålogging"); else window.location.reload();
-                }
+                const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+                if (error) alert("Feil brukernavn/passord"); else window.location.reload();
             };
 
             const updateDb = async (table, id, updates) => {
@@ -157,21 +151,20 @@
                 fetchData();
             };
 
-            const openAccessCount = useMemo(() => requests.filter(r => r.type === 'ACCESS' && r.status === 'Open').length, [requests]);
-            const unassignedTaskCount = useMemo(() => requests.filter(r => r.type !== 'ACCESS' && r.status === 'Open' && r.assigned_to === 'Ikke tildelt').length, [requests]);
-            
-            const isAdmin = user && ['henrik.h.wiik@gmail.com'].includes(user.email);
+            const isAdmin = user && user.email === 'henrik.h.wiik@gmail.com';
+            const openAccess = requests.filter(r => r.type === 'ACCESS' && r.status === 'Open').length;
+            const unassigned = requests.filter(r => r.type !== 'ACCESS' && r.status === 'Open' && r.assigned_to === 'Ikke tildelt').length;
 
-            if (loading) return <div className="h-screen flex items-center justify-center font-black italic text-gray-200 text-4xl">RCMP...</div>;
+            if (loading) return <div className="h-screen flex items-center justify-center font-black italic text-gray-200 text-4xl animate-pulse">RCMP...</div>;
 
             if (!user) return (
                 <div className="flex h-screen w-screen overflow-hidden">
                     <div className="w-[480px] bg-white p-20 flex flex-col justify-center">
-                        <h1 className="text-4xl font-black mb-10">RCMP</h1>
+                        <div className="mb-12"><h1 className="text-4xl font-black text-gray-900 leading-none">RCMP</h1><p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">Experience Design Portal</p></div>
                         <form onSubmit={handleAuth} className="space-y-5">
                             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="input-field" placeholder="E-post" required />
                             <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className="input-field" placeholder="Passord" required />
-                            <button className="bg-[#0058AB] text-white p-5 rounded-2xl font-black uppercase tracking-widest btn-clickable">Logg inn</button>
+                            <button className="bg-[#0058AB] text-white p-5 rounded-2xl font-black uppercase tracking-widest btn-clickable shadow-xl">Logg inn ➜</button>
                         </form>
                     </div>
                     <div className="flex-1 login-gradient"></div>
@@ -180,67 +173,85 @@
 
             return (
                 <div className="flex min-h-screen">
+                    {/* Image Zoom Modal */}
+                    {zoomedImage && (
+                        <div className="modal-overlay" onClick={() => setZoomedImage(null)}>
+                            <img src={zoomedImage} className="max-w-full max-h-full rounded-3xl shadow-2xl animate-in zoom-in-95 cursor-zoom-out" />
+                        </div>
+                    )}
+
+                    {/* Decision Modal */}
                     {activeDecision && (
                         <div className="modal-overlay">
-                            <div className="glass-card w-full max-w-md p-10 rounded-[2.5rem]">
-                                <h3 className="text-2xl font-black mb-4">Beslutning</h3>
-                                <textarea id="modalReason" className="w-full p-5 bg-gray-50 rounded-2xl h-32 mb-6" placeholder="Begrunnelse..."></textarea>
+                            <div className="glass-card w-full max-w-md p-10 rounded-[2.5rem] shadow-2xl bg-white">
+                                <h3 className="text-2xl font-black mb-4">Fullfør sak</h3>
+                                <textarea id="modalReason" className="w-full p-5 bg-gray-50 rounded-2xl h-32 outline-none mb-6 font-medium" placeholder="Skriv begrunnelse her..."></textarea>
                                 <div className="flex gap-4">
-                                    <button onClick={() => setActiveDecision(null)} className="flex-1 font-bold text-gray-400">Avbryt</button>
-                                    <button onClick={() => finalizeDecision(document.getElementById('modalReason').value)} className="flex-[2] py-4 rounded-2xl text-white font-black bg-gray-900">Bekreft</button>
+                                    <button onClick={() => setActiveDecision(null)} className="flex-1 font-bold text-gray-400 btn-clickable">Avbryt</button>
+                                    <button onClick={() => finalizeDecision(document.getElementById('modalReason').value)} className="flex-[2] py-4 rounded-2xl text-white font-black uppercase bg-gray-900 btn-clickable">Bekreft</button>
                                 </div>
                             </div>
                         </div>
                     )}
 
-                    <aside className="w-72 bg-white border-r fixed h-full pt-12">
-                        <div className="px-10 mb-8"><h1 className="text-4xl font-black italic">RCMP</h1></div>
+                    <aside className="w-72 bg-white border-r border-gray-100 fixed h-full z-20 pt-12">
+                        <div className="px-10 mb-8"><h1 className="text-4xl font-black italic text-gray-900">RCMP</h1><p className="text-[9px] font-black uppercase tracking-[0.3em] text-gray-400 mt-1.5">Exp Design</p></div>
                         <nav className="space-y-1">
-                            <button onClick={() => setView('dashboard')} className="sidebar-item px-6 py-4 font-bold">👤 Min side</button>
-                            <button onClick={() => setView('systems')} className="sidebar-item px-6 py-4">🛰️ Live Ops</button>
-                            <button onClick={() => setView('insights')} className="sidebar-item px-6 py-4">💡 Insight Engine</button>
-                            <div className="h-px bg-gray-100 mx-8 my-4"></div>
-                            <button onClick={() => setView('access')} className="sidebar-item px-6 py-4">🔑 Be om tilgang</button>
-                            <button onClick={() => setView('new')} className="sidebar-item px-6 py-4">✨ Ny forespørsel</button>
-                            <button onClick={() => setView('error')} className="sidebar-item px-6 py-4">⚠️ Rapporter feil</button>
-                            {isAdmin && <button onClick={() => setView('admin')} className="sidebar-item px-6 py-4 font-bold text-red-500">🛡️ Control Center</button>}
+                            <button onClick={() => setView('dashboard')} className={`sidebar-item px-6 py-4 text-sm font-bold ${view === 'dashboard' ? 'sidebar-active' : ''}`}>👤 Min side</button>
+                            <button onClick={() => setView('systems')} className={`sidebar-item px-6 py-3.5 text-sm font-semibold ${view === 'systems' ? 'sidebar-active' : ''}`}>🛰️ Live Ops</button>
+                            <button onClick={() => setView('insights')} className={`sidebar-item px-6 py-3.5 text-sm font-semibold ${view === 'insights' ? 'sidebar-active' : ''}`}>💡 Insight Engine</button>
+                            <div className="mx-8 border-t border-gray-100 my-4"></div>
+                            <button onClick={() => setView('access')} className={`sidebar-item px-6 py-3.5 text-sm font-semibold ${view === 'access' ? 'sidebar-active' : ''}`}>🔑 Be om tilgang</button>
+                            <button onClick={() => setView('new')} className={`sidebar-item px-6 py-3.5 text-sm font-semibold ${view === 'new' ? 'sidebar-active' : ''}`}>✨ Ny forespørsel</button>
+                            <button onClick={() => setView('error')} className={`sidebar-item px-6 py-3.5 text-sm font-semibold ${view === 'error' ? 'sidebar-active' : ''}`}>⚠️ Rapporter feil</button>
+                            {isAdmin && <button onClick={() => setView('admin')} className={`sidebar-item px-6 py-3.5 text-sm font-bold ${view === 'admin' ? 'sidebar-active' : 'text-red-500'}`}>🛡️ Control Center {(unassigned + openAccess) > 0 && <span className="badge-red">{unassigned + openAccess}</span>}</button>}
                         </nav>
-                        <button onClick={() => supabaseClient.auth.signOut().then(() => window.location.reload())} className="absolute bottom-10 left-10 text-[10px] font-black text-gray-400 uppercase tracking-widest">Logg ut</button>
+                        <button onClick={() => supabaseClient.auth.signOut().then(() => window.location.reload())} className="absolute bottom-10 left-10 text-[10px] font-black text-gray-400 uppercase tracking-widest">Logg ut ➜</button>
                     </aside>
 
                     <main className="flex-1 ml-72 p-16">
                         <div className="max-w-5xl mx-auto">
                             {view === 'admin' && (
-                                <div className="space-y-10">
+                                <div className="space-y-10 animate-in fade-in">
                                     <div className="admin-tab-bar">
                                         {['Tasks', 'Access', 'Log'].map(sub => (
-                                            <button key={sub} onClick={() => setAdminSubView(sub)} className={`admin-tab ${adminSubView === sub ? 'admin-tab-active' : ''}`}>{sub}</button>
+                                            <button key={sub} onClick={() => setAdminSubView(sub)} className={`admin-tab ${adminSubView === sub ? 'admin-tab-active' : 'text-gray-500'}`}>{sub}</button>
                                         ))}
                                     </div>
 
                                     {adminSubView === 'Tasks' && TEAM.map(member => {
                                         const tasks = requests.filter(r => r.type !== 'ACCESS' && r.status === 'Open' && r.assigned_to === member);
+                                        if (tasks.length === 0 && member !== 'Ikke tildelt') return null;
                                         const config = TEAM_COLORS[member] || TEAM_COLORS['Ikke tildelt'];
                                         return (
-                                            <div key={member} className="space-y-4 mb-10">
-                                                <div className="flex items-center gap-2"><div className={`w-2 h-2 rounded-full ${config.dot}`}></div><h4 className="font-black text-[10px] uppercase tracking-widest text-gray-400">{member} ({tasks.length})</h4></div>
-                                                {tasks.map(req => (
-                                                    <div key={req.id} className={`glass-card p-6 rounded-[2rem] flex justify-between items-center border-l-4 ${config.border}`}>
-                                                        <div className="flex items-center gap-4">
-                                                            {req.image_attachment && <a href={req.image_attachment} target="_blank"><img src={req.image_attachment} className="image-preview-circle" /></a>}
-                                                            <div>
-                                                                <h5 className="font-black text-lg">{req.title}</h5>
-                                                                <p className="text-[10px] font-bold text-gray-400">{req.requested_by}</p>
+                                            <div key={member} className="space-y-5 mb-12">
+                                                <div className="flex items-center gap-3 px-2">
+                                                    <div className={`w-2 h-2 rounded-full ${config.dot}`}></div>
+                                                    <h4 className="text-[11px] font-black uppercase tracking-[0.2em] text-gray-400">{member} ({tasks.length})</h4>
+                                                </div>
+                                                <div className="space-y-3">
+                                                    {tasks.map(req => (
+                                                        <div key={req.id} className={`glass-card p-6 rounded-[2.2rem] flex justify-between items-center border-l-4 ${config.border} bg-white shadow-sm`}>
+                                                            <div className="flex items-center gap-5">
+                                                                {req.image_attachment ? (
+                                                                    <img src={req.image_attachment} className="image-preview-circle" onClick={() => setZoomedImage(req.image_attachment)} />
+                                                                ) : (
+                                                                    <div className="w-11 h-11 rounded-xl bg-gray-50 flex items-center justify-center text-gray-300">🖼️</div>
+                                                                )}
+                                                                <div>
+                                                                    <h5 className="font-black text-lg text-gray-800 leading-tight">{req.title}</h5>
+                                                                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{req.requested_by} • <span className="text-blue-500">{req.type}</span></p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex gap-4 items-center">
+                                                                <select value={req.assigned_to} onChange={(e) => updateDb('requests', req.id, {assigned_to: e.target.value})} className="bg-white border rounded-xl p-2.5 text-[10px] font-black uppercase outline-none cursor-pointer">
+                                                                    {TEAM.map(t => <option key={t} value={t}>{t}</option>)}
+                                                                </select>
+                                                                <button onClick={() => setActiveDecision({id: req.id, status: 'Completed'})} className={`${config.btn} text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase btn-clickable shadow-sm`}>Løs</button>
                                                             </div>
                                                         </div>
-                                                        <div className="flex gap-4">
-                                                            <select value={req.assigned_to} onChange={(e) => updateDb('requests', req.id, {assigned_to: e.target.value})} className="bg-white border rounded-xl p-2 text-[10px] font-black uppercase">
-                                                                {TEAM.map(t => <option key={t} value={t}>{t}</option>)}
-                                                            </select>
-                                                            <button onClick={() => setActiveDecision({id: req.id, status: 'Completed'})} className={`${config.btn} text-white px-5 rounded-xl text-[10px] font-black uppercase`}>Løs</button>
-                                                        </div>
-                                                    </div>
-                                                ))}
+                                                    ))}
+                                                </div>
                                             </div>
                                         );
                                     })}
@@ -248,53 +259,60 @@
                             )}
 
                             {(view === 'new' || view === 'error' || view === 'access') && (
-                                <div className="max-w-xl">
-                                    <h2 className="text-4xl font-black mb-8 italic uppercase">{view === 'access' ? 'Tilgang' : 'Ny sak'}</h2>
-                                    <form onSubmit={(e) => handleSubmitForm(e, view.toUpperCase())} className="glass-card p-10 rounded-[3rem] space-y-6">
+                                <div className="max-w-xl animate-in fade-in">
+                                    <h2 className="text-4xl font-black mb-8 italic uppercase">{view === 'access' ? 'Be om tilgang' : view === 'error' ? 'Rapporter feil' : 'Ny forespørsel'}</h2>
+                                    <form onSubmit={(e) => handleSubmitForm(e, view.toUpperCase())} className="glass-card p-10 rounded-[3rem] space-y-6 bg-white shadow-xl">
                                         {view === 'access' ? (
-                                            <select name="title" required className="input-field font-bold">
-                                                {REPORT_STRUCTURE.map(g => (
-                                                    <optgroup key={g.app} label={g.app}>
-                                                        {g.reports.map(r => <option key={r} value={`${g.app}: ${r}`}>{r}</option>)}
-                                                    </optgroup>
-                                                ))}
-                                            </select>
+                                            <div className="space-y-2">
+                                                <label className="text-[10px] font-black uppercase text-gray-400 ml-2">Velg rapport</label>
+                                                <select name="title" required className="input-field font-bold cursor-pointer">
+                                                    {REPORT_STRUCTURE.map(g => (
+                                                        <optgroup key={g.app} label={g.app}>
+                                                            {g.reports.map(r => <option key={r} value={`${g.app}: ${r}`}>{r}</option>)}
+                                                        </optgroup>
+                                                    ))}
+                                                </select>
+                                            </div>
                                         ) : (
-                                            <input name="title" required placeholder="Hva gjelder det?" className="input-field font-bold" />
+                                            <input name="title" required placeholder="Tittel på saken" className="input-field font-bold" />
                                         )}
-                                        <textarea name="description" required className="input-field h-32" placeholder="Beskrivelse..."></textarea>
+                                        <textarea name="description" required className="input-field h-40" placeholder="Beskriv behovet eller feilen her..."></textarea>
                                         
                                         <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Legg ved bilde (valgfritt)</label>
-                                            <input type="file" name="screenshot" accept="image/*" className="w-full text-xs font-bold text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-[10px] file:font-black file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                                            <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Legg ved bilde (frivillig)</label>
+                                            <input type="file" name="screenshot" accept="image/*" className="w-full text-xs font-bold text-gray-400 file:mr-4 file:py-3 file:px-6 file:rounded-xl file:border-0 file:text-[10px] file:font-black file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer" />
                                         </div>
 
-                                        <button disabled={uploading} className="bg-[#0058AB] text-white p-5 rounded-2xl font-black uppercase w-full">
-                                            {uploading ? 'Laster opp...' : 'Send inn ➜'}
+                                        <button disabled={uploading} className="bg-[#0058AB] text-white p-5 rounded-2xl font-black uppercase tracking-widest w-full btn-clickable shadow-lg">
+                                            {uploading ? 'Laster opp... ⏳' : 'Send forespørsel ➜'}
                                         </button>
                                     </form>
                                 </div>
                             )}
 
                             {view === 'dashboard' && (
-                                <div className="space-y-6">
-                                    <h2 className="text-4xl font-black italic">Mine saker</h2>
-                                    {requests.filter(r => r.requested_by === user.email).map(req => (
-                                        <div key={req.id} className="glass-card p-8 rounded-[2.5rem] flex justify-between">
-                                            <div>
-                                                <span className="text-[9px] font-black uppercase text-blue-600 bg-blue-50 px-2 py-1 rounded-md">{req.status}</span>
-                                                <h3 className="text-xl font-black mt-2">{req.title}</h3>
-                                                {req.admin_reason && <p className="text-sm italic text-blue-600 mt-2">"{req.admin_reason}"</p>}
+                                <div className="space-y-8 animate-in fade-in">
+                                    <h2 className="text-4xl font-black italic">Mine aktive saker</h2>
+                                    <div className="grid gap-4">
+                                        {requests.filter(r => r.requested_by === user.email).map(req => (
+                                            <div key={req.id} className="glass-card p-8 rounded-[2.5rem] flex justify-between items-center bg-white shadow-sm">
+                                                <div className="flex items-center gap-6">
+                                                    {req.image_attachment && <img src={req.image_attachment} className="w-16 h-16 rounded-2xl object-cover cursor-pointer" onClick={() => setZoomedImage(req.image_attachment)} />}
+                                                    <div>
+                                                        <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest mb-2 inline-block ${req.status === 'Open' ? 'bg-blue-50 text-blue-600' : 'bg-green-50 text-green-600'}`}>{req.status}</span>
+                                                        <h3 className="text-xl font-black">{req.title}</h3>
+                                                        {req.admin_reason && <p className="text-sm text-blue-600 font-bold mt-2 italic">"{req.admin_reason}"</p>}
+                                                    </div>
+                                                </div>
+                                                <div className="text-xs font-bold text-gray-300">#{req.id}</div>
                                             </div>
-                                            {req.image_attachment && <img src={req.image_attachment} className="w-16 h-16 rounded-2xl object-cover" />}
-                                        </div>
-                                    ))}
+                                        ))}
+                                    </div>
                                 </div>
                             )}
-                            
-                            {/* Insight Engine og Systems forblir i koden */}
-                            {view === 'systems' && <div className="space-y-6"><h2 className="text-4xl font-black italic">Live Ops</h2>{systems.map(s => (<div key={s.id} className="glass-card p-8 rounded-[2.5rem] flex items-center gap-4"><div className={`w-3 h-3 rounded-full ${s.status === 'online' ? 'bg-green-500' : 'bg-red-500 animate-pulse'}`}></div><h4 className="text-2xl font-black">{s.system_name}</h4></div>))}</div>}
-                            {view === 'insights' && <div className="grid grid-cols-2 gap-8">{insights.filter(i => i.is_active).map(item => (<div key={item.id} className="glass-card rounded-[3rem] overflow-hidden"><img src={item.image_url} className="h-48 w-full object-cover"/><div className="p-8"><h3 className="font-black text-xl">{item.title}</h3><p className="text-sm text-gray-500 mt-2">{item.description}</p><a href={item.link_url} target="_blank"><button style={{background: item.color_hex}} className="w-full py-4 rounded-xl text-white font-black uppercase mt-6">Se mer</button></a></div></div>))}</div>}
+
+                            {view === 'systems' && <div className="space-y-8 animate-in fade-in"><h2 className="text-4xl font-black italic">Live Ops</h2>{systems.map(s => (<div key={s.id} className="glass-card p-8 rounded-[2.5rem] flex items-center gap-4 bg-white shadow-sm"><div className={`w-3.5 h-3.5 rounded-full ${s.status === 'online' ? 'bg-green-500' : 'bg-amber-500 animate-pulse'}`}></div><h4 className="font-black text-2xl">{s.system_name}</h4></div>))}</div>}
+                            {view === 'insights' && <div className="grid grid-cols-2 gap-8 animate-in fade-in">{insights.filter(i => i.is_active).map(item => (<div key={item.id} className="glass-card rounded-[3.5rem] overflow-hidden bg-white shadow-lg flex flex-col"><img src={item.image_url} className="h-56 w-full object-cover"/><div className="p-10 flex-1 flex flex-col"><span className="text-[10px] font-black uppercase text-blue-600 tracking-widest">{item.tag}</span><h3 className="text-2xl font-black mt-2 leading-tight">{item.title}</h3><p className="text-gray-500 text-sm mt-4 line-clamp-3">{item.description}</p><a href={item.link_url} target="_blank" className="mt-auto pt-8"><button style={{backgroundColor: item.color_hex}} className="w-full text-white py-4 rounded-2xl font-black uppercase text-xs tracking-widest shadow-lg btn-clickable">Gå til Insight ➜</button></a></div></div>))}</div>}
                         </div>
                     </main>
                 </div>
