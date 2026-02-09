@@ -14,17 +14,15 @@
         body { font-family: 'Plus Jakarta Sans', sans-serif; letter-spacing: -0.025em; background-color: #fcfcfd; color: #101828; margin: 0; }
         .sidebar-item { transition: all 0.2s ease; border-radius: 12px; margin: 2px 12px; display: flex; align-items: center; width: calc(100% - 24px); position: relative; cursor: pointer; border: none; background: transparent; text-align: left; font-size: 14px; font-weight: 500; }
         .sidebar-active { background-color: #f5f8ff; color: #0058AB !important; font-weight: 700; box-shadow: inset 4px 0 0 -1px #0058AB; }
-        .glass-card { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid #f0f2f5; border-radius: 2.5rem; }
+        .glass-card { background: white; border: 1px solid #f0f2f5; border-radius: 2.5rem; transition: all 0.3s ease; }
         .btn-clickable { cursor: pointer; transition: all 0.2s; border: none; }
         .btn-clickable:active { transform: scale(0.98); }
         .input-field { background-color: #f0f4f9; border: none; border-radius: 12px; padding: 16px; width: 100%; outline: none; font-weight: 500; }
-        .status-dot { width: 10px; height: 10px; border-radius: 50%; }
-        .red-dot { width: 6px; height: 6px; background-color: #ef4444; border-radius: 50%; display: inline-block; margin-left: 6px; }
-        .badge-count { background-color: #ef4444; color: white; font-size: 10px; font-weight: 900; padding: 2px 6px; border-radius: 10px; position: absolute; right: 12px; }
-        .admin-tab-bar { background-color: #f3f4f6; padding: 6px; border-radius: 18px; display: inline-flex; gap: 4px; }
-        .admin-tab { padding: 8px 20px; border-radius: 12px; font-size: 12px; font-weight: 700; transition: all 0.2s; cursor: pointer; border: none; position: relative; }
-        .admin-tab-active { background-color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.05); color: #101828; }
+        .admin-tab-bar { background-color: #f3f4f6; padding: 6px; border-radius: 22px; display: inline-flex; gap: 4px; }
+        .admin-tab { padding: 10px 24px; border-radius: 18px; font-size: 13px; font-weight: 700; transition: all 0.2s; cursor: pointer; border: none; position: relative; color: #64748b; }
+        .admin-tab-active { background-color: white; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); color: #101828; }
         .hero-gradient { background: linear-gradient(135deg, #004d99 0%, #0058AB 100%); position: relative; }
+        .status-badge-dot { width: 6px; height: 6px; background-color: #ef4444; border-radius: 50%; display: inline-block; margin-left: 6px; }
     </style>
 </head>
 <body>
@@ -67,12 +65,7 @@
             const submitRequest = async (type, title, description = "") => {
                 const fullTitle = description ? `${title} | Begrunnelse: ${description}` : title;
                 await supabaseClient.from('requests').insert([{ 
-                    type, 
-                    title: fullTitle, 
-                    requested_by: user.email, 
-                    status: 'Open', 
-                    assigned_to: 'Ikke tildelt',
-                    created_at: new Date().toISOString()
+                    type, title: fullTitle, requested_by: user.email, status: 'Open', assigned_to: 'Ikke tildelt' 
                 }]);
                 setView('dashboard');
                 fetchAllData();
@@ -83,12 +76,14 @@
                 fetchAllData();
             };
 
-            const getStaffColor = (name) => {
-                if (name === 'Ikke tildelt') return 'text-red-500';
-                if (name === 'Henrik') return 'text-[#0058AB]';
-                if (name === 'Marthe') return 'text-emerald-500';
-                if (name === 'Karolina') return 'text-purple-500';
-                return 'text-gray-900';
+            const getStaffStyles = (name) => {
+                switch(name) {
+                    case 'Ikke tildelt': return { bg: 'bg-red-50', text: 'text-red-500' };
+                    case 'Henrik': return { bg: 'bg-blue-50', text: 'text-[#0058AB]' };
+                    case 'Marthe': return { bg: 'bg-emerald-50', text: 'text-emerald-600' };
+                    case 'Karolina': return { bg: 'bg-purple-50', text: 'text-purple-600' };
+                    default: return { bg: 'bg-gray-50', text: 'text-gray-500' };
+                }
             };
 
             const taskCount = useMemo(() => requests.filter(r => r.status === 'Open' && r.type !== 'ACCESS').length, [requests]);
@@ -102,9 +97,8 @@
                     {activeDecision && (
                         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-6">
                             <div className="bg-white p-10 rounded-[2.5rem] w-full max-w-md shadow-2xl">
-                                <h3 className="text-2xl font-black mb-2">{activeDecision.status === 'Rejected' ? 'Avslå forespørsel' : 'Fullfør forespørsel'}</h3>
-                                <p className="text-gray-400 text-sm mb-6 font-bold uppercase tracking-widest">Legg ved en melding til bruker</p>
-                                <textarea id="reasonTxt" className="input-field h-32 mb-6" placeholder="Skriv kommentar her..."></textarea>
+                                <h3 className="text-2xl font-black mb-2">{activeDecision.status === 'Rejected' ? 'Avslå' : 'Fullfør'} forespørsel</h3>
+                                <textarea id="reasonTxt" className="input-field h-32 mb-6 mt-4" placeholder="Legg ved en kommentar til bruker..."></textarea>
                                 <div className="flex gap-4">
                                     <button onClick={() => setActiveDecision(null)} className="flex-1 font-bold text-gray-400">Avbryt</button>
                                     <button onClick={() => {
@@ -114,7 +108,7 @@
                                             resolved_at: new Date().toISOString()
                                         });
                                         setActiveDecision(null);
-                                    }} className={`flex-[2] py-4 rounded-2xl font-black uppercase tracking-widest text-white ${activeDecision.status === 'Rejected' ? 'bg-red-500' : 'bg-slate-900'}`}>Bekreft</button>
+                                    }} className={`flex-[2] py-4 rounded-2xl font-black uppercase tracking-widest text-white ${activeDecision.status === 'Rejected' ? 'bg-red-500' : 'bg-emerald-500'}`}>Bekreft</button>
                                 </div>
                             </div>
                         </div>
@@ -146,49 +140,19 @@
 
                     <main className="flex-1 ml-72 p-16">
                         <div className="max-w-5xl mx-auto">
-                            {view === 'dashboard' && <DashboardView requests={requests} user={user} getStaffColor={getStaffColor} />}
+                            {view === 'dashboard' && <DashboardView requests={requests} user={user} getStaffStyles={getStaffStyles} />}
                             {view === 'live' && <LiveView systems={systems} />}
                             {view === 'insights' && <InsightsView insights={insights} />}
-                            
-                            {view === 'access' && (
-                                <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                    <h2 className="text-4xl font-black italic mb-10 text-[#0058AB]">Be om tilgang</h2>
-                                    <div className="glass-card p-10 bg-white shadow-xl">
-                                        <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 ml-2">Velg app eller rapport</p>
-                                        <select id="accessSelect" className="input-field mb-6 text-xl appearance-none">
-                                            <optgroup label="App: RCMP Performance">
-                                                <option>RCMP Performance: Happy Customer Score</option>
-                                                <option>RCMP Performance: Authorisation Performance Tool</option>
-                                                <option>RCMP Performance: Median Performance Tool</option>
-                                                <option>RCMP Performance: BackOffice FollowUp</option>
-                                            </optgroup>
-                                            <optgroup label="App: Customer Insight Norway">
-                                                <option>Customer Insight Norway: Compensation</option>
-                                                <option>Customer Insight Norway: SAC</option>
-                                                <option>Customer Insight Norway: After Sales</option>
-                                                <option>Customer Insight Norway: Repeated Calls</option>
-                                            </optgroup>
-                                            <optgroup label="Enkeltstående rapporter">
-                                                <option>Workspace Planning: Shrinkage Report - RCMP Norway</option>
-                                            </optgroup>
-                                        </select>
-                                        <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 ml-2">Begrunnelse</p>
-                                        <textarea id="accessReason" className="input-field h-32 mb-6" placeholder="Hvorfor trenger du denne tilgangen?"></textarea>
-                                        <button onClick={() => submitRequest('ACCESS', document.getElementById('accessSelect').value, document.getElementById('accessReason').value)} className="bg-[#0058AB] text-white px-10 py-5 rounded-2xl font-black uppercase tracking-widest btn-clickable">Send forespørsel ➜</button>
-                                    </div>
-                                </div>
-                            )}
-
+                            {view === 'access' && <AccessForm onSubmit={(t, d) => submitRequest('ACCESS', t, d)} />}
                             {view === 'new' && <FormWithTitleView title="Ny forespørsel" onSubmit={(t, d) => submitRequest('TASK', t, d)} />}
                             {view === 'error' && <FormWithTitleView title="Rapporter feil" onSubmit={(t, d) => submitRequest('ERROR', t, d)} />}
-
                             {view === 'admin' && (
                                 <AdminPanel 
                                     requests={requests} systems={systems} insights={insights} 
                                     subView={adminSubView} setSubView={setAdminSubView} 
                                     onUpdate={updateDb} onDecide={(id, s) => setActiveDecision({id, status: s})}
                                     counts={{tasks: taskCount, access: accessCount}}
-                                    getStaffColor={getStaffColor}
+                                    getStaffStyles={getStaffStyles}
                                 />
                             )}
                         </div>
@@ -203,6 +167,134 @@
             </button>
         );
 
+        const DashboardView = ({ requests, user, getStaffStyles }) => (
+            <div className="space-y-8 animate-in fade-in duration-500">
+                <h2 className="text-4xl font-black italic text-[#0058AB]">Min side</h2>
+                {requests.filter(r => r.requested_by === user.email).map(req => {
+                    const style = getStaffStyles(req.assigned_to);
+                    return (
+                        <div key={req.id} className="glass-card p-8 flex justify-between items-center border-l-[12px] border-l-[#0058AB] shadow-sm">
+                            <div className="flex-1 pr-6">
+                                <span className={`text-[9px] font-black uppercase px-2 py-1 rounded ${req.status === 'Open' ? 'bg-blue-50 text-blue-600' : (req.status === 'Rejected' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600')}`}>
+                                    {req.status === 'Open' ? 'Behandles' : (req.status === 'Rejected' ? 'Avvist' : 'Fullført')}
+                                </span>
+                                <h3 className="text-xl font-black mt-2">{req.title}</h3>
+                                {req.admin_reason && <p className="text-sm italic text-blue-600 mt-2 font-medium">"{req.admin_reason}"</p>}
+                                <p className="text-[10px] text-gray-400 font-bold mt-2">Meldt: {new Date(req.created_at).toLocaleString('no-NO')}</p>
+                            </div>
+                            <div className="text-right whitespace-nowrap">
+                                <p className="text-[10px] font-black text-gray-400 uppercase">Ansvarlig</p>
+                                <p className={`font-black ${style.text}`}>{req.assigned_to}</p>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        );
+
+        const AdminPanel = ({ requests, systems, insights, subView, setSubView, onUpdate, onDecide, counts, getStaffStyles }) => {
+            const sortedTasks = useMemo(() => {
+                return [...requests].filter(r => r.status === 'Open' && r.type !== 'ACCESS').sort((a, b) => {
+                    if (a.assigned_to === 'Ikke tildelt' && b.assigned_to !== 'Ikke tildelt') return -1;
+                    if (a.assigned_to !== 'Ikke tildelt' && b.assigned_to === 'Ikke tildelt') return 1;
+                    return 0;
+                });
+            }, [requests]);
+
+            return (
+                <div className="space-y-10 animate-in fade-in duration-500">
+                    <div className="admin-tab-bar">
+                        <button onClick={() => setSubView('Tasks')} className={`admin-tab ${subView === 'Tasks' ? 'admin-tab-active' : ''}`}>Tasks {counts.tasks > 0 && <span className="status-badge-dot"></span>}</button>
+                        <button onClick={() => setSubView('Access')} className={`admin-tab ${subView === 'Access' ? 'admin-tab-active' : ''}`}>Access {counts.access > 0 && <span className="status-badge-dot"></span>}</button>
+                        <button onClick={() => setSubView('Logg')} className={`admin-tab ${subView === 'Logg' ? 'admin-tab-active' : ''}`}>Logg</button>
+                        <button onClick={() => setSubView('Live')} className={`admin-tab ${subView === 'Live' ? 'admin-tab-active' : ''}`}>Live</button>
+                        <button onClick={() => setSubView('Insights')} className={`admin-tab ${subView === 'Insights' ? 'admin-tab-active' : ''}`}>Insights</button>
+                    </div>
+
+                    {subView === 'Tasks' && sortedTasks.map(req => {
+                        const style = getStaffStyles(req.assigned_to);
+                        return (
+                            <div key={req.id} className="glass-card p-8 flex justify-between items-center border-l-[12px] border-l-[#0058AB] mb-4 shadow-sm">
+                                <div className="flex-1 pr-4">
+                                    <h5 className="font-black text-xl">{req.title}</h5>
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{req.requested_by}</p>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <select 
+                                        value={req.assigned_to} 
+                                        onChange={(e) => onUpdate('requests', req.id, {assigned_to: e.target.value})} 
+                                        className={`input-field py-3 px-4 text-xs font-black min-w-[140px] appearance-none cursor-pointer ${style.bg} ${style.text}`}
+                                    >
+                                        {['Ikke tildelt', 'Henrik', 'Marthe', 'Karolina'].map(m => <option key={m} value={m}>{m}</option>)}
+                                    </select>
+                                    <button onClick={() => onDecide(req.id, 'Completed')} className="bg-emerald-500 text-white px-8 py-4 rounded-xl font-black text-[11px] btn-clickable">LØS</button>
+                                    <button onClick={() => onDecide(req.id, 'Rejected')} className="bg-red-500 text-white px-8 py-4 rounded-xl font-black text-[11px] btn-clickable">AVSLÅ</button>
+                                </div>
+                            </div>
+                        );
+                    })}
+
+                    {subView === 'Access' && requests.filter(r => r.status === 'Open' && r.type === 'ACCESS').map(req => (
+                        <div key={req.id} className="glass-card p-8 flex justify-between items-center border-l-[12px] border-l-amber-400 mb-4 shadow-sm">
+                            <div className="flex-1 pr-6"><h5 className="font-black text-xl">{req.title}</h5><p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{req.requested_by}</p></div>
+                            <div className="flex gap-4">
+                                <button onClick={() => onDecide(req.id, 'Completed')} className="bg-emerald-500 text-white px-8 py-4 rounded-xl font-black text-[11px] btn-clickable">GODKJENN</button>
+                                <button onClick={() => onDecide(req.id, 'Rejected')} className="bg-red-500 text-white px-8 py-4 rounded-xl font-black text-[11px] btn-clickable">AVSLÅ</button>
+                            </div>
+                        </div>
+                    ))}
+
+                    {subView === 'Logg' && (
+                        <div className="space-y-4">
+                            {requests.filter(r => r.status !== 'Open').map(req => {
+                                const style = getStaffStyles(req.assigned_to);
+                                return (
+                                    <div key={req.id} className="glass-card p-8 bg-gray-50 border border-gray-100 flex flex-col gap-4">
+                                        <div className="flex justify-between items-start">
+                                            <div>
+                                                <span className={`text-[9px] font-black uppercase px-2 py-1 rounded ${req.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                                                    {req.status === 'Completed' ? 'LØST' : 'AVVIST'}
+                                                </span>
+                                                <h4 className="text-lg font-black mt-2">{req.title}</h4>
+                                                <p className="text-xs text-gray-400 font-bold uppercase">{req.requested_by}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-[10px] text-gray-400 font-black uppercase">Saksbehandler</p>
+                                                <p className={`font-black ${style.text}`}>{req.assigned_to}</p>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-8 py-4 border-y border-gray-200/50">
+                                            <div><p className="text-[9px] text-gray-400 font-black uppercase">Meldt inn</p><p className="text-sm font-bold">{new Date(req.created_at).toLocaleString('no-NO')}</p></div>
+                                            <div><p className="text-[9px] text-gray-400 font-black uppercase">Ferdigstilt</p><p className="text-sm font-bold">{req.resolved_at ? new Date(req.resolved_at).toLocaleString('no-NO') : '-'}</p></div>
+                                        </div>
+                                        {req.admin_reason && <div className="bg-white p-4 rounded-xl border border-gray-100 italic text-sm font-medium">"{req.admin_reason}"</div>}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {subView === 'Insights' && (
+                        <div className="space-y-6">
+                            {insights.map(i => (
+                                <div key={i.id} className="glass-card p-8 bg-white space-y-4">
+                                    <div className="flex justify-between items-center border-b pb-4">
+                                        <h5 className="font-black text-xl">Rediger Insight Card</h5>
+                                        <input type="checkbox" checked={i.is_active} onChange={(e) => onUpdate('insights', i.id, {is_active: e.target.checked})} className="w-6 h-6 accent-[#0058AB]" />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <input defaultValue={i.title} onBlur={(e) => onUpdate('insights', i.id, {title: e.target.value})} className="input-field" placeholder="Tittel" />
+                                        <input defaultValue={i.tag} onBlur={(e) => onUpdate('insights', i.id, {tag: e.target.value})} className="input-field" placeholder="Tag" />
+                                    </div>
+                                    <input defaultValue={i.image_url} onBlur={(e) => onUpdate('insights', i.id, {image_url: e.target.value})} className="input-field" placeholder="Bildelink (URL)" />
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
         const FormWithTitleView = ({ title, onSubmit }) => {
             const [t, setT] = useState('');
             const [d, setD] = useState('');
@@ -210,8 +302,8 @@
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
                     <h2 className="text-4xl font-black italic mb-10 text-[#0058AB]">{title}</h2>
                     <div className="glass-card p-10 bg-white shadow-xl">
-                        <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 ml-2">Tittel</p>
-                        <input value={t} onChange={e => setT(e.target.value)} className="input-field mb-6 text-xl" placeholder="Kort overskrift..." />
+                        <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 ml-2">Overskrift</p>
+                        <input value={t} onChange={e => setT(e.target.value)} className="input-field mb-6 text-xl" placeholder="Hva gjelder det?" />
                         <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 ml-2">Beskrivelse</p>
                         <textarea value={d} onChange={e => setD(e.target.value)} className="w-full h-40 bg-gray-50 rounded-3xl p-8 outline-none text-xl font-medium mb-6" placeholder="Beskriv saken nærmere..."></textarea>
                         <button onClick={() => { if(t){ onSubmit(t, d); setT(''); setD(''); } }} className="bg-[#0058AB] text-white px-10 py-5 rounded-2xl font-black uppercase tracking-widest btn-clickable">Send inn ➜</button>
@@ -220,41 +312,34 @@
             );
         };
 
-        const DashboardView = ({ requests, user, getStaffColor }) => (
-            <div className="space-y-8 animate-in fade-in duration-500">
-                <h2 className="text-4xl font-black italic text-[#0058AB]">Min side</h2>
-                {requests.filter(r => r.requested_by === user.email).map(req => (
-                    <div key={req.id} className="glass-card p-8 flex justify-between items-center bg-white border-l-8 border-l-blue-500 shadow-sm">
-                        <div className="flex-1 pr-6">
-                            <span className={`text-[9px] font-black uppercase px-2 py-1 rounded ${req.status === 'Open' ? 'bg-blue-50 text-blue-600' : (req.status === 'Rejected' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600')}`}>
-                                {req.status === 'Open' ? 'Behandles' : (req.status === 'Rejected' ? 'Avvist' : 'Fullført')}
-                            </span>
-                            <h3 className="text-xl font-black mt-2">{req.title}</h3>
-                            {req.admin_reason && <p className="text-sm italic text-blue-600 mt-2 font-medium">"{req.admin_reason}"</p>}
-                            <p className="text-[10px] text-gray-400 font-bold mt-2">Meldt: {new Date(req.created_at).toLocaleString('no-NO')}</p>
-                        </div>
-                        <div className="text-right whitespace-nowrap">
-                            <p className="text-[10px] font-black text-gray-400 uppercase">Ansvarlig</p>
-                            <p className={`font-black ${getStaffColor(req.assigned_to)}`}>{req.assigned_to}</p>
-                        </div>
-                    </div>
-                ))}
+        const AccessForm = ({ onSubmit }) => (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+                <h2 className="text-4xl font-black italic mb-10 text-[#0058AB]">Be om tilgang</h2>
+                <div className="glass-card p-10 shadow-xl">
+                    <p className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4 ml-2">Velg tilgang</p>
+                    <select id="accessSelect" className="input-field mb-6 text-xl appearance-none">
+                        <option>RCMP Performance Tool</option>
+                        <option>Customer Insight Norway</option>
+                        <option>Happy Customer Score</option>
+                        <option>Workspace Planning Report</option>
+                    </select>
+                    <textarea id="accessReason" className="input-field h-32 mb-6" placeholder="Hvorfor trenger du denne tilgangen?"></textarea>
+                    <button onClick={() => onSubmit(document.getElementById('accessSelect').value, document.getElementById('accessReason').value)} className="bg-[#0058AB] text-white px-10 py-5 rounded-2xl font-black uppercase tracking-widest btn-clickable">Send forespørsel ➜</button>
+                </div>
             </div>
         );
 
         const LiveView = ({ systems }) => (
             <div className="space-y-8 animate-in fade-in duration-500">
                 <h2 className="text-4xl font-black italic text-[#0058AB]">Live Ops</h2>
-                <div className="grid gap-6">
-                    {systems.map(s => (
-                        <div key={s.id} className="glass-card p-8 bg-white flex items-center justify-between shadow-sm">
-                            <div className="flex items-center gap-6">
-                                <div className={`status-dot ${s.status === 'online' ? 'bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.5)]' : 'bg-amber-500 animate-pulse'}`}></div>
-                                <div><h3 className="text-2xl font-black">{s.system_name}</h3><p className="text-gray-400 font-medium">{s.status_message || 'Opererer normalt'}</p></div>
-                            </div>
+                {systems.map(s => (
+                    <div key={s.id} className="glass-card p-8 flex items-center justify-between shadow-sm">
+                        <div className="flex items-center gap-6">
+                            <div className={`w-3 h-3 rounded-full ${s.status === 'online' ? 'bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.5)]' : 'bg-amber-500 animate-pulse'}`}></div>
+                            <div><h3 className="text-2xl font-black">{s.system_name}</h3><p className="text-gray-400 font-medium">{s.status_message || 'Opererer normalt'}</p></div>
                         </div>
-                    ))}
-                </div>
+                    </div>
+                ))}
             </div>
         );
 
@@ -263,113 +348,16 @@
                 <h2 className="text-4xl font-black italic text-[#0058AB]">Insight Engine</h2>
                 <div className="grid grid-cols-2 gap-8">
                     {insights.filter(i => i.is_active).map(item => (
-                        <div key={item.id} className="glass-card overflow-hidden bg-white shadow-lg">
+                        <div key={item.id} className="glass-card overflow-hidden shadow-lg hover:shadow-2xl">
                             <div className="h-52 bg-gray-100"><img src={item.image_url} className="w-full h-full object-cover" /></div>
                             <div className="p-10">
                                 <span className="text-[10px] font-black uppercase text-blue-600">{item.tag}</span>
                                 <h3 className="text-2xl font-black mt-2">{item.title}</h3>
-                                <button style={{backgroundColor: item.color_hex}} className="w-full text-white py-4 rounded-2xl font-black uppercase text-xs mt-8 btn-clickable">Åpne rapport ➜</button>
+                                <button className="w-full bg-[#0058AB] text-white py-4 rounded-2xl font-black uppercase text-xs mt-8 btn-clickable">Åpne rapport ➜</button>
                             </div>
                         </div>
                     ))}
                 </div>
-            </div>
-        );
-
-        const AdminPanel = ({ requests, systems, insights, subView, setSubView, onUpdate, onDecide, counts, getStaffColor }) => (
-            <div className="space-y-10 animate-in fade-in duration-500">
-                <div className="admin-tab-bar">
-                    <button onClick={() => setSubView('Tasks')} className={`admin-tab ${subView === 'Tasks' ? 'admin-tab-active' : 'text-gray-400'}`}>Tasks {counts.tasks > 0 && <span className="red-dot"></span>}</button>
-                    <button onClick={() => setSubView('Access')} className={`admin-tab ${subView === 'Access' ? 'admin-tab-active' : 'text-gray-400'}`}>Access {counts.access > 0 && <span className="red-dot"></span>}</button>
-                    <button onClick={() => setSubView('Logg')} className={`admin-tab ${subView === 'Logg' ? 'admin-tab-active' : 'text-gray-400'}`}>Logg</button>
-                    <button onClick={() => setSubView('Live')} className={`admin-tab ${subView === 'Live' ? 'admin-tab-active' : 'text-gray-400'}`}>Live</button>
-                    <button onClick={() => setSubView('Insights')} className={`admin-tab ${subView === 'Insights' ? 'admin-tab-active' : 'text-gray-400'}`}>Insights</button>
-                </div>
-
-                {subView === 'Tasks' && requests.filter(r => r.status === 'Open' && r.type !== 'ACCESS').map(req => (
-                    <div key={req.id} className="glass-card p-8 flex justify-between items-center bg-white border-l-8 border-l-blue-500 mb-4 shadow-sm">
-                        <div className="flex-1 pr-4"><h5 className="font-black text-xl line-clamp-2">{req.title}</h5><p className="text-xs font-bold text-gray-400 uppercase">{req.requested_by}</p></div>
-                        <div className="flex gap-4">
-                            <select value={req.assigned_to} onChange={(e) => onUpdate('requests', req.id, {assigned_to: e.target.value})} className={`input-field py-2 text-xs font-black ${getStaffColor(req.assigned_to)}`}>
-                                {['Ikke tildelt', 'Henrik', 'Marthe', 'Karolina'].map(m => <option key={m}>{m}</option>)}
-                            </select>
-                            <button onClick={() => onDecide(req.id, 'Completed')} className="bg-[#0058AB] text-white px-8 py-3 rounded-xl font-black text-[10px]">LØS</button>
-                            <button onClick={() => onDecide(req.id, 'Rejected')} className="bg-red-500 text-white px-8 py-3 rounded-xl font-black text-[10px]">AVSLÅ</button>
-                        </div>
-                    </div>
-                ))}
-
-                {subView === 'Access' && requests.filter(r => r.status === 'Open' && r.type === 'ACCESS').map(req => (
-                    <div key={req.id} className="glass-card p-8 flex justify-between items-center bg-white border-l-8 border-l-amber-400 mb-4 shadow-sm">
-                        <div className="flex-1 pr-6"><h5 className="font-black text-xl line-clamp-3">{req.title}</h5><p className="text-xs font-bold text-gray-400">{req.requested_by}</p></div>
-                        <div className="flex gap-4">
-                            <button onClick={() => onDecide(req.id, 'Completed')} className="bg-emerald-500 text-white px-8 py-3 rounded-xl font-black text-[10px]">GODKJENN</button>
-                            <button onClick={() => onDecide(req.id, 'Rejected')} className="bg-red-500 text-white px-8 py-3 rounded-xl font-black text-[10px]">AVSLÅ</button>
-                        </div>
-                    </div>
-                ))}
-
-                {subView === 'Logg' && (
-                    <div className="space-y-4">
-                        {requests.filter(r => r.status !== 'Open').map(req => (
-                            <div key={req.id} className="glass-card p-8 bg-gray-50 border border-gray-100 flex flex-col gap-4 shadow-sm">
-                                <div className="flex justify-between items-start">
-                                    <div>
-                                        <span className={`text-[9px] font-black uppercase px-2 py-1 rounded ${req.status === 'Completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
-                                            {req.status === 'Completed' ? 'LØST' : 'AVVIST'}
-                                        </span>
-                                        <h4 className="text-lg font-black mt-2">{req.title}</h4>
-                                        <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">{req.requested_by}</p>
-                                    </div>
-                                    <div className="text-right">
-                                        <p className="text-[10px] text-gray-400 font-black uppercase">Saksbehandler</p>
-                                        <p className={`font-black ${getStaffColor(req.assigned_to)}`}>{req.assigned_to}</p>
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-3 gap-8 py-4 border-y border-gray-100">
-                                    <div><p className="text-[9px] text-gray-400 font-black uppercase">Meldt inn</p><p className="text-sm font-bold">{new Date(req.created_at).toLocaleDateString()} kl. {new Date(req.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p></div>
-                                    <div><p className="text-[9px] text-gray-400 font-black uppercase">Løst/Avvist</p><p className="text-sm font-bold">{req.resolved_at ? `${new Date(req.resolved_at).toLocaleDateString()} kl. ${new Date(req.resolved_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}` : '-'}</p></div>
-                                    <div><p className="text-[9px] text-gray-400 font-black uppercase">Varighet</p><p className="text-sm font-bold">Løst i portal</p></div>
-                                </div>
-                                {req.admin_reason && (
-                                    <div className="bg-white p-4 rounded-xl border border-gray-100 italic text-sm font-medium">
-                                        "{req.admin_reason}"
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                )}
-
-                {subView === 'Live' && systems.map(s => (
-                    <div key={s.id} className="glass-card p-10 bg-white mb-6 space-y-4 shadow-sm">
-                        <div className="flex gap-4">
-                            <input defaultValue={s.system_name} onBlur={(e) => onUpdate('system_status', s.id, {system_name: e.target.value})} className="input-field font-bold" />
-                            <select value={s.status} onChange={(e) => onUpdate('system_status', s.id, {status: e.target.value})} className="input-field w-40 font-black uppercase text-xs">
-                                <option value="online">Online</option>
-                                <option value="degraded">Degradert</option>
-                            </select>
-                        </div>
-                        <input defaultValue={s.status_message} onBlur={(e) => onUpdate('system_status', s.id, {status_message: e.target.value})} className="input-field italic" placeholder="Statusmelding..." />
-                    </div>
-                ))}
-
-                {subView === 'Insights' && insights.map(i => (
-                    <div key={i.id} className="glass-card p-10 bg-white mb-6 space-y-4 shadow-sm">
-                        <div className="flex justify-between items-center border-b pb-4">
-                            <h5 className="font-black text-xl">Rediger Insight Card</h5>
-                            <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-black uppercase text-gray-400">Aktiv</span>
-                                <input type="checkbox" checked={i.is_active} onChange={(e) => onUpdate('insights', i.id, {is_active: e.target.checked})} className="w-6 h-6 accent-[#0058AB]" />
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div><p className="text-[9px] font-black uppercase text-gray-400 ml-2 mb-1">Tittel</p><input defaultValue={i.title} onBlur={(e) => onUpdate('insights', i.id, {title: e.target.value})} className="input-field" /></div>
-                            <div><p className="text-[9px] font-black uppercase text-gray-400 ml-2 mb-1">Tag (f.eks PowerBI)</p><input defaultValue={i.tag} onBlur={(e) => onUpdate('insights', i.id, {tag: e.target.value})} className="input-field" /></div>
-                        </div>
-                        <div><p className="text-[9px] font-black uppercase text-gray-400 ml-2 mb-1">Bildelink (URL)</p><input defaultValue={i.image_url} onBlur={(e) => onUpdate('insights', i.id, {image_url: e.target.value})} className="input-field" /></div>
-                    </div>
-                ))}
             </div>
         );
 
@@ -383,13 +371,13 @@
             const handleAuth = async (e) => {
                 e.preventDefault();
                 setMessage('');
-                const isAllowedDomain = email.toLowerCase().endsWith('@ingka.ikea.com') || email.toLowerCase().endsWith('@ingka');
+                const isAllowed = email.toLowerCase().endsWith('@ingka.ikea.com') || email.toLowerCase().endsWith('@ingka');
                 if (mode === 'signup') {
-                    if (!isAllowedDomain) { setMessage("Kun brukere med @ingka.ikea.com eller @ingka e-post kan opprette konto."); return; }
+                    if (!isAllowed) { setMessage("Kun @ingka e-post er tillatt."); return; }
                     if (pass !== confirmPass) { setMessage("Passordene samsvarer ikke."); return; }
                     const { data, error } = await supabaseClient.auth.signUp({ email, password: pass });
                     if (error) setMessage(error.message);
-                    else setMessage("Bruker opprettet! Sjekk e-posten din for bekreftelse.");
+                    else setMessage("Sjekk e-posten din for bekreftelse!");
                 } else if (mode === 'login') {
                     const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: pass });
                     if (error) setMessage("Feil e-post eller passord.");
@@ -397,32 +385,35 @@
                 } else if (mode === 'forgot') {
                     const { error } = await supabaseClient.auth.resetPasswordForEmail(email);
                     if (error) setMessage(error.message);
-                    else setMessage("Instruksjoner for nullstilling sendt til e-post.");
+                    else setMessage("Instruksjoner sendt til e-post.");
                 }
             };
 
             return (
-                <div className="flex h-screen w-screen overflow-hidden bg-white">
+                <div className="flex h-screen w-screen bg-white">
                     <div className="w-[450px] p-16 flex flex-col justify-center">
-                        <h1 className="text-4xl font-black italic mb-2 text-[#0058AB] leading-none">RCMP</h1>
+                        <h1 className="text-4xl font-black italic mb-2 text-[#0058AB]">RCMP</h1>
                         <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-10">Experience Design Portal</p>
-                        <h2 className="text-2xl font-black mb-6">{mode === 'login' ? 'Logg inn' : mode === 'signup' ? 'Ny bruker' : 'Glemt passord'}</h2>
-                        <form onSubmit={handleAuth} className="space-y-4">
-                            <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="input-field" placeholder="E-post" required />
-                            {mode !== 'forgot' && <input type="password" value={pass} onChange={e => setPass(e.target.value)} className="input-field" placeholder="Passord" required />}
-                            {mode === 'signup' && <input type="password" value={confirmPass} onChange={e => setConfirmPass(e.target.value)} className="input-field" placeholder="Bekreft passord" required />}
-                            {message && <p className={`text-xs font-bold leading-relaxed ${message.includes('sendt') || message.includes('opprettet') ? 'text-emerald-500' : 'text-red-500'}`}>{message}</p>}
-                            <button className="bg-[#0058AB] text-white p-5 rounded-2xl font-black uppercase tracking-widest btn-clickable w-full shadow-lg mt-4">{mode === 'login' ? 'Logg inn ➜' : mode === 'signup' ? 'Opprett bruker ➜' : 'Nullstill ➜'}</button>
-                        </form>
-                        <div className="mt-8 space-y-2">
-                            {mode === 'login' ? (
-                                <><button onClick={() => {setMode('signup'); setMessage('');}} className="text-xs font-bold text-gray-500 hover:text-[#0058AB] block">Har du ikke konto? Lag ny bruker</button>
-                                <button onClick={() => {setMode('forgot'); setMessage('');}} className="text-xs font-bold text-gray-500 hover:text-[#0058AB] block">Glemt passord?</button></>
-                            ) : <button onClick={() => {setMode('login'); setMessage('');}} className="text-xs font-bold text-gray-500 hover:text-[#0058AB] block">Tilbake til logg inn</button>}
+                        <div className="flex gap-4 mb-8">
+                            <button onClick={() => setMode('login')} className={`text-sm font-bold border-b-2 pb-1 ${mode==='login' ? 'border-[#0058AB] text-[#0058AB]' : 'border-transparent text-gray-300'}`}>Logg inn</button>
+                            <button onClick={() => setMode('signup')} className={`text-sm font-bold border-b-2 pb-1 ${mode==='signup' ? 'border-[#0058AB] text-[#0058AB]' : 'border-transparent text-gray-300'}`}>Lag bruker</button>
                         </div>
+                        <form onSubmit={handleAuth} className="space-y-4">
+                            <input type="email" value={email} onChange={e => setEmail(e.target.value)} className="input-field" placeholder="E-postadresse" required />
+                            {mode !== 'forgot' && <input type="password" value={pass} onChange={e => setPass(e.target.value)} className="input-field" placeholder="Passord" required />}
+                            {mode === 'signup' && <input type="password" value={confirmPass} onChange={e => setConfirmPass(e.target.value)} className="input-field" placeholder="Gjenta passord" required />}
+                            {message && <p className={`text-xs font-bold ${message.includes('Sjekk') ? 'text-emerald-500' : 'text-red-500'}`}>{message}</p>}
+                            <button className="bg-[#0058AB] text-white p-5 rounded-2xl font-black uppercase tracking-widest btn-clickable w-full shadow-lg mt-4">
+                                {mode === 'login' ? 'Logg inn ➜' : mode === 'signup' ? 'Lag bruker ➜' : 'Nullstill ➜'}
+                            </button>
+                        </form>
+                        {mode === 'login' && <button onClick={() => setMode('forgot')} className="text-xs font-bold text-gray-400 mt-6 hover:text-[#0058AB]">Glemt passord?</button>}
                     </div>
                     <div className="flex-1 hero-gradient flex items-center justify-center">
-                        <div className="text-center"><h2 className="text-amber-400 text-7xl font-black italic leading-none drop-shadow-2xl">Experience Design</h2><p className="text-white font-bold tracking-[0.5em] uppercase mt-4 opacity-60">Norway Hub</p></div>
+                        <div className="text-center">
+                            <h2 className="text-amber-400 text-7xl font-black italic leading-none drop-shadow-2xl">Experience Design</h2>
+                            <p className="text-white font-bold tracking-[0.5em] mt-4 opacity-60">NORWAY HUB</p>
+                        </div>
                     </div>
                 </div>
             );
